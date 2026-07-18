@@ -1,0 +1,20 @@
+[package]
+name = "multiboot-kernel"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["staticlib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+embedded-graphics = "0.8.2"
+heapless = "0.9.3"
+multiboot2 = { version = "0.25.0", default-features = false }
+spin = "0.12.2"
+tinyqoi = "0.2.0"

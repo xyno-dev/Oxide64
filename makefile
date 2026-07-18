@@ -24,5 +24,6 @@ flash : multiboot-kernel.iso
 clean:
 	rm -rf ./src/boot.o ./src/long_mode.o \
 		./kernel.bin ./multiboot-kernel.iso \
-		./qemu.log ./target ./isodir/boot/assets/*
+		./qemu.log ./target ./isodir/boot/assets/* \
+		./isodir/boot/kernel.bin
 

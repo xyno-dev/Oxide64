@@ -1,8 +1,8 @@
 use embedded_graphics::{
-    mono_font::{MonoTextStyle, MonoTextStyleBuilder, ascii::FONT_6X10},
+    mono_font::{MonoTextStyleBuilder, ascii::FONT_6X10},
     pixelcolor::Rgb888,
     prelude::*,
-    text::{Alignment, Text},
+    text::Text,
 };
 
 use spin::Mutex;

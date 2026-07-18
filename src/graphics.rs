@@ -83,7 +83,9 @@ impl Writer {
                 .text_color(Rgb888::WHITE)
                 .background_color(Rgb888::BLACK)
                 .build();
-            Text::new(s, Point::new(0, (i * 11) as i32), style).draw(fb);
+            Text::new(s, Point::new(0, (i * 11) as i32), style)
+                .draw(fb)
+                .unwrap();
         }
     }
 }

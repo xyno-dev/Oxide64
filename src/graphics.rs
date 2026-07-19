@@ -1,5 +1,8 @@
 use embedded_graphics::{
-    mono_font::{MonoTextStyle, MonoTextStyleBuilder, ascii::FONT_6X10}, pixelcolor::Rgb888, prelude::*, text::{Alignment, Baseline, Text, renderer::TextRenderer},
+    mono_font::{MonoTextStyle, MonoTextStyleBuilder, ascii::FONT_6X10},
+    pixelcolor::Rgb888,
+    prelude::*,
+    text::{Baseline, Text, renderer::TextRenderer},
 };
 
 use heapless::String;
@@ -32,7 +35,9 @@ impl DrawTarget for FrameBuffer {
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
         for Pixel(coord, color) in pixels {
-            if coord.x.is_negative() || coord.y.is_negative() { continue; }
+            if coord.x.is_negative() || coord.y.is_negative() {
+                continue;
+            }
             let idx = coord.y as usize * self.pitch + coord.x as usize * 4;
             if idx + 2 >= self.buffer.len() {
                 continue;
@@ -147,9 +152,9 @@ pub fn _printerr(args: fmt::Arguments) {
             &message,
             Point::new(
                 (1024 / 2) - (max_width as i32 / 2),
-                (768 / 2) - (total_height as i32 / 2)
+                (768 / 2) - (total_height as i32 / 2),
             ),
-            style
+            style,
         )
         .draw(frame_buffer)
         .unwrap();
@@ -158,14 +163,14 @@ pub fn _printerr(args: fmt::Arguments) {
 
 #[test_case]
 fn test_println_simple() {
-    print!("test_println_once... ");
+    print!("test_println_simple output... ");
     println!("[PASS]")
 }
 
 #[test_case]
 fn test_println_many() {
     for _ in 0..200 {
-        print!("test_println_many... ");
+        print!("test_println_many output... ");
         println!("[PASS]")
     }
 }

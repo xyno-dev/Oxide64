@@ -1,20 +1,18 @@
 #![no_std]
 #![no_main]
-
 #![feature(custom_test_frameworks)]
 #![feature(abi_x86_interrupt)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-mod serial;
 mod graphics;
 mod interrupts;
+mod serial;
 
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};
 
 use graphics::*;
-
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
@@ -49,7 +47,7 @@ pub extern "C" fn kernel_main(multiboot_info_ptr: usize) -> ! {
         let height = fb_tag.height();
         let pitch = fb_tag.pitch();
         // let bpp = fb_tag.bpp();
-        
+
         let total_bytes = (height * pitch) as usize;
         let buffer = unsafe { core::slice::from_raw_parts_mut(fb_address as *mut u8, total_bytes) };
 

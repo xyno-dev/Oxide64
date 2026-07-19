@@ -66,13 +66,13 @@ pub extern "C" fn kernel_main(multiboot_info_ptr: usize) -> ! {
         });
     }
 
+    init();
+
     #[cfg(test)]
     test_main();
 
     #[cfg(test)]
     println!("SUCCESS");
-
-    init();
 
     loop {}
 }

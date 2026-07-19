@@ -2,56 +2,23 @@
 #![no_main]
 
 #![feature(custom_test_frameworks)]
+#![feature(abi_x86_interrupt)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+mod serial;
 mod graphics;
+mod interrupts;
 
 use core::panic::PanicInfo;
-
 use multiboot2::{BootInformation, BootInformationHeader};
 
-use embedded_graphics::{
-    mono_font::{MonoTextStyle, ascii::FONT_6X10},
-    pixelcolor::Rgb888,
-    prelude::*,
-    text::{Alignment, Text},
-};
-
-use core::fmt::Write;
 use graphics::*;
-use heapless::String;
 
-use core::arch::asm;
-
-fn debug_byte(b: u8) {
-    unsafe {
-        asm!("out dx, al", in("dx") 0x402u16, in("al") b);
-    }
-}
-
-fn debug_str(s: &str) {
-    for b in s.bytes() {
-        debug_byte(b);
-    }
-}
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    let style = MonoTextStyle::new(&FONT_6X10, Rgb888::RED);
-    let mut message: String<256> = String::new();
-    write!(message, "{info}").unwrap();
-    debug_str(message.as_str());
-    if let Some(frame_buffer) = FRAME_BUFFER.lock().as_mut() {
-        Text::with_alignment(
-            &message,
-            Point::new(1024 / 2, 768 / 2),
-            style,
-            Alignment::Center,
-        )
-        .draw(frame_buffer)
-        .unwrap();
-    }
+    printerr!("{info}");
     loop {}
 }
 
@@ -61,6 +28,10 @@ pub fn test_runner(tests: &[&dyn Fn()]) {
     for test in tests {
         test();
     }
+}
+
+pub fn init() {
+    interrupts::init_idt();
 }
 
 #[unsafe(no_mangle)]
@@ -100,6 +71,8 @@ pub extern "C" fn kernel_main(multiboot_info_ptr: usize) -> ! {
 
     #[cfg(test)]
     println!("SUCCESS");
+
+    init();
 
     loop {}
 }

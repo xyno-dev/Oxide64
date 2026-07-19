@@ -1,13 +1,14 @@
 use embedded_graphics::{
-    mono_font::{MonoTextStyleBuilder, ascii::FONT_6X10},
-    pixelcolor::Rgb888,
-    prelude::*,
-    text::Text,
+    mono_font::{MonoTextStyle, MonoTextStyleBuilder, ascii::FONT_6X10}, pixelcolor::Rgb888, prelude::*, text::{Alignment, Baseline, Text, renderer::TextRenderer},
 };
 
+use heapless::String;
 use spin::Mutex;
 
 use core::fmt;
+use core::fmt::Write;
+
+use crate::serial;
 
 pub static FRAME_BUFFER: Mutex<Option<FrameBuffer>> = Mutex::new(None);
 pub static WRITER: Mutex<Option<Writer>> = Mutex::new(None);
@@ -116,24 +117,55 @@ macro_rules! println {
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
 
+#[macro_export]
+macro_rules! printerr {
+    ($($arg:tt)*) => ($crate::graphics::_printerr(format_args!($($arg)*)));
+}
+
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     if let Some(writer) = WRITER.lock().as_mut() {
-        writer.write_fmt(args);
+        writer.write_fmt(args).unwrap();
+    }
+}
+
+pub fn _printerr(args: fmt::Arguments) {
+    let style = MonoTextStyle::new(&FONT_6X10, Rgb888::RED);
+    let mut message: String<1024> = String::new();
+    write!(message, "{args}").unwrap();
+    let mut max_width = 0u32;
+    let mut total_height = 0u32;
+    for line in message.as_str().split('\n') {
+        let metrics = style.measure_string(line, Point::zero(), Baseline::Alphabetic);
+        max_width = max_width.max(metrics.bounding_box.size.width);
+        total_height += metrics.bounding_box.size.height;
+    }
+    serial::debug_str(message.as_str());
+    if let Some(frame_buffer) = FRAME_BUFFER.lock().as_mut() {
+        Text::new(
+            &message,
+            Point::new(
+                (1024 / 2) - (max_width as i32 / 2),
+                (768 / 2) - (total_height as i32 / 2)
+            ),
+            style
+        )
+        .draw(frame_buffer)
+        .unwrap();
     }
 }
 
 #[test_case]
 fn test_println_simple() {
-    print!("test_println_simple output... ");
+    print!("test_println_once... ");
     println!("[PASS]")
 }
 
 #[test_case]
 fn test_println_many() {
     for _ in 0..200 {
-        print!("test_println_many output... ");
+        print!("test_println_many... ");
         println!("[PASS]")
     }
 }

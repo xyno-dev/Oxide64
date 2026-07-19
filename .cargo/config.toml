@@ -1,0 +1,12 @@
+[build]
+target = "x86_64-unknown-none"
+
+[target.x86_64-unknown-none]
+rustflags = [
+    "-C", "link-arg=-Tlinker.ld",
+    "-C", "link-arg=./src/boot.o",
+    "-C", "link-arg=./src/long_mode.o",
+    "-C", "relocation-model=static",
+    "-C", "link-arg=--no-gc-sections"
+]
+runner = "./test.sh"

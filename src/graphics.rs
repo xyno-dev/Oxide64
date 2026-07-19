@@ -12,6 +12,9 @@ use core::fmt;
 pub static FRAME_BUFFER: Mutex<Option<FrameBuffer>> = Mutex::new(None);
 pub static WRITER: Mutex<Option<Writer>> = Mutex::new(None);
 
+pub const ROWS: usize = 768 / 11;
+pub const COLS: usize = 1024 / 7;
+
 pub struct FrameBuffer {
     pub buffer: &'static mut [u8],
     pub width: usize,
@@ -28,6 +31,7 @@ impl DrawTarget for FrameBuffer {
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
         for Pixel(coord, color) in pixels {
+            if coord.x.is_negative() || coord.y.is_negative() { continue; }
             let idx = coord.y as usize * self.pitch + coord.x as usize * 4;
             if idx + 2 >= self.buffer.len() {
                 continue;
@@ -47,7 +51,7 @@ impl OriginDimensions for FrameBuffer {
 }
 
 pub struct Writer {
-    pub text_buffer: [[u8; 1024 / 7]; 768 / 11],
+    pub text_buffer: [[u8; COLS]; ROWS],
     pub column: usize,
 }
 
@@ -58,20 +62,20 @@ impl Writer {
                 self.newline();
             }
             b => {
-                if self.column >= 1024 / 7 {
+                if self.column >= COLS {
                     self.newline();
                 }
-                self.text_buffer[768 / 11 - 1][self.column] = b;
+                self.text_buffer[ROWS - 1][self.column] = b;
                 self.column += 1;
             }
         }
     }
 
     fn newline(&mut self) {
-        for row in 0..(768 / 11 - 1) {
+        for row in 0..(ROWS - 1) {
             self.text_buffer[row] = self.text_buffer[row + 1];
         }
-        self.text_buffer[768 / 11 - 1] = [b' '; 1024 / 7];
+        self.text_buffer[ROWS - 1] = [b' '; COLS];
         self.column = 0;
     }
 
@@ -115,5 +119,32 @@ macro_rules! println {
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
-    WRITER.lock().as_mut().unwrap().write_fmt(args).unwrap();
+    if let Some(writer) = WRITER.lock().as_mut() {
+        writer.write_fmt(args);
+    }
+}
+
+#[test_case]
+fn test_println_simple() {
+    print!("test_println_simple output... ");
+    println!("[PASS]")
+}
+
+#[test_case]
+fn test_println_many() {
+    for _ in 0..200 {
+        print!("test_println_many output... ");
+        println!("[PASS]")
+    }
+}
+
+#[test_case]
+fn test_println_output() {
+    let s = "test_println_output... ";
+    print!("{}", s);
+    for (i, c) in s.bytes().enumerate() {
+        let screen_char = WRITER.lock().as_mut().unwrap().text_buffer[ROWS - 1][i];
+        assert_eq!(screen_char, c);
+    }
+    println!("[PASS]")
 }

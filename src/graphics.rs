@@ -162,15 +162,15 @@ pub fn _printerr(args: fmt::Arguments) {
 }
 
 #[test_case]
-fn test_println_simple() {
-    print!("test_println_simple output... ");
+fn test_println_once() {
+    print!("test_println_once... ");
     println!("[PASS]")
 }
 
 #[test_case]
 fn test_println_many() {
     for _ in 0..200 {
-        print!("test_println_many output... ");
+        print!("test_println_many... ");
         println!("[PASS]")
     }
 }

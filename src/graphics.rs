@@ -5,6 +5,8 @@ use embedded_graphics::{
     text::{Baseline, Text, renderer::TextRenderer},
 };
 
+use x86_64::instructions::interrupts;
+
 use heapless::String;
 use spin::Mutex;
 
@@ -130,9 +132,11 @@ macro_rules! printerr {
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
-    if let Some(writer) = WRITER.lock().as_mut() {
-        writer.write_fmt(args).unwrap();
-    }
+    interrupts::without_interrupts(|| {
+        if let Some(writer) = WRITER.lock().as_mut() {
+            writer.write_fmt(args).unwrap();
+        }
+    });
 }
 
 pub fn _printerr(args: fmt::Arguments) {
@@ -147,18 +151,20 @@ pub fn _printerr(args: fmt::Arguments) {
         total_height += metrics.bounding_box.size.height;
     }
     serial::debug_str(message.as_str());
-    if let Some(frame_buffer) = FRAME_BUFFER.lock().as_mut() {
-        Text::new(
-            &message,
-            Point::new(
-                (1024 / 2) - (max_width as i32 / 2),
-                (768 / 2) - (total_height as i32 / 2),
-            ),
-            style,
-        )
-        .draw(frame_buffer)
-        .unwrap();
-    }
+    interrupts::without_interrupts(|| {
+        if let Some(frame_buffer) = FRAME_BUFFER.lock().as_mut() {
+            Text::new(
+                &message,
+                Point::new(
+                    (1024 / 2) - (max_width as i32 / 2),
+                    (768 / 2) - (total_height as i32 / 2),
+                ),
+                style,
+            )
+            .draw(frame_buffer)
+            .unwrap();
+        }
+    });
 }
 
 #[test_case]
@@ -178,10 +184,13 @@ fn test_println_many() {
 #[test_case]
 fn test_println_output() {
     let s = "test_println_output... ";
-    print!("{}", s);
-    for (i, c) in s.bytes().enumerate() {
-        let screen_char = WRITER.lock().as_mut().unwrap().text_buffer[ROWS - 1][i];
-        assert_eq!(screen_char, c);
-    }
+    interrupts::without_interrupts(|| {
+        println!();
+        print!("{}", s);
+        for (i, c) in s.bytes().enumerate() {
+            let screen_char = WRITER.lock().as_mut().unwrap().text_buffer[ROWS - 1][i];
+            assert_eq!(screen_char, c);
+        }
+    });
     println!("[PASS]")
 }

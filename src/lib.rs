@@ -15,10 +15,16 @@ use multiboot2::{BootInformation, BootInformationHeader};
 
 use graphics::*;
 
+pub fn hlt_loop() -> ! {
+    loop {
+        x86_64::instructions::hlt();
+    }
+}
+
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     printerr!("{info}");
-    loop {}
+    hlt_loop();
 }
 
 #[cfg(test)]
@@ -39,7 +45,7 @@ pub fn init() {
 #[unsafe(no_mangle)]
 pub extern "C" fn kernel_main(multiboot_info_ptr: usize) -> ! {
     let boot_info = unsafe {
-        BootInformation::load(multiboot_info_ptr as *const BootInformationHeader)
+BootInformation::load(multiboot_info_ptr as *const BootInformationHeader)
             .expect("Failed to parse Multiboot2 structure")
     };
     if let Some(fb_tag) = boot_info.framebuffer_tag() {
@@ -76,7 +82,7 @@ pub extern "C" fn kernel_main(multiboot_info_ptr: usize) -> ! {
     #[cfg(test)]
     println!("SUCCESS");
 
-    loop {}
+    hlt_loop();
 }
 
 #[test_case]

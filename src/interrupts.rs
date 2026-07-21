@@ -1,4 +1,4 @@
-use crate::{print, printerr, println};
+use crate::printerr;
 use crate::gdt;
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
@@ -30,6 +30,7 @@ extern "x86-interrupt" fn double_fault_handler(
 
 #[test_case]
 fn test_breakpoint_exception() {
+    use crate::{print, println};
     print!("test_breakpoint_exception... ");
     x86_64::instructions::interrupts::int3();
     println!("[PASS]");

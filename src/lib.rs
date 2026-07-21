@@ -5,9 +5,10 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-mod graphics;
-mod interrupts;
-mod serial;
+pub mod graphics;
+pub mod interrupts;
+pub mod serial;
+pub mod gdt;
 
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};
@@ -29,6 +30,7 @@ pub fn test_runner(tests: &[&dyn Fn()]) {
 }
 
 pub fn init() {
+    gdt::init_gdt();
     interrupts::init_idt();
 }
 

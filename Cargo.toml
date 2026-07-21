@@ -19,6 +19,7 @@ embedded-graphics = "0.8.2"
 heapless = "0.9.3"
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
 multiboot2 = { version = "0.25.0", default-features = false }
+pic8259 = "0.11.0"
 spin = "0.12.2"
 tinyqoi = "0.2.0"
 x86_64 = "0.15.5"

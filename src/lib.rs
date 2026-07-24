@@ -78,6 +78,10 @@ pub extern "C" fn kernel_main(multiboot_info_ptr: usize) -> ! {
         });
     }
 
+    graphics::splash();
+    time::sleep(2.0);
+    graphics::clear_framebuffer();
+
     init();
 
     #[cfg(test)]

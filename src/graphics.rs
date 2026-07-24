@@ -1,10 +1,8 @@
 use embedded_graphics::{
-    mono_font::{MonoTextStyle, MonoTextStyleBuilder, ascii::FONT_6X10},
-    pixelcolor::Rgb888,
-    prelude::*,
-    text::{Baseline, Text, renderer::TextRenderer},
+    image::Image, mono_font::{MonoTextStyle, MonoTextStyleBuilder, ascii::FONT_6X10}, pixelcolor::Rgb888, prelude::*, text::{Baseline, Text, renderer::TextRenderer},
 };
 
+use tinyqoi::Qoi;
 use x86_64::instructions::interrupts;
 
 use heapless::String;
@@ -165,6 +163,22 @@ pub fn _printerr(args: fmt::Arguments) {
             .unwrap();
         }
     });
+}
+
+pub fn splash() {
+    let data = include_bytes!("./assets/logo.qoi");
+    let qoi = Qoi::new(data).unwrap();
+    if let Some(frame_buffer) = FRAME_BUFFER.lock().as_mut() {
+        frame_buffer.clear(Rgb888::BLACK);
+        Image::new(&qoi, Point::new(1024 / 2 - 256, 768 / 2 - 256))
+            .draw(frame_buffer).unwrap();
+    }
+}
+
+pub fn clear_framebuffer() {
+    if let Some(frame_buffer) = FRAME_BUFFER.lock().as_mut() {
+        frame_buffer.clear(Rgb888::BLACK);
+    }
 }
 
 #[test_case]

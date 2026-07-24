@@ -39,40 +39,28 @@ fn rdtsc() -> u64 {
     edx << 32 | eax
 }
 
-pub fn rtc_secs() -> u8 {
+fn read_rtc(index_address: u8) -> u8 {
     interrupts::without_interrupts(|| unsafe {
         let mut index_port: Port<u8> = Port::new(0x70);
         let mut data_port: Port<u8> = Port::new(0x71);
 
-        index_port.write(0x00);
-        let secs = data_port.read();
+        index_port.write(index_address);
+        let data = data_port.read();
 
-        ((secs >> 4) * 10) + (secs & 0x0F)
+        ((data >> 4) * 10) + (data & 0x0F)
     })
+}
+
+pub fn rtc_secs() -> u8 {
+    read_rtc(0x00)
 }
 
 pub fn rtc_mins() -> u8 {
-    interrupts::without_interrupts(|| unsafe {
-        let mut index_port: Port<u8> = Port::new(0x70);
-        let mut data_port: Port<u8> = Port::new(0x71);
-
-        index_port.write(0x04);
-        let mins = data_port.read();
-
-        ((mins >> 4) * 10) + (mins & 0x0F)
-    })
+    read_rtc(0x02)
 }
 
 pub fn rtc_hrs() -> u8 {
-    interrupts::without_interrupts(|| unsafe {
-        let mut index_port: Port<u8> = Port::new(0x70);
-        let mut data_port: Port<u8> = Port::new(0x71);
-
-        index_port.write(0x02);
-        let hrs = data_port.read();
-
-        ((hrs >> 4) * 10) + (hrs & 0x0F)
-    })
+    read_rtc(0x04)
 }
 
 pub fn secs() -> u64 {

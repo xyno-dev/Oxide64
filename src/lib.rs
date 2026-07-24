@@ -9,6 +9,7 @@ pub mod graphics;
 pub mod interrupts;
 pub mod serial;
 pub mod gdt;
+pub mod time;
 
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};

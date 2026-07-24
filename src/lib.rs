@@ -5,10 +5,10 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+pub mod gdt;
 pub mod graphics;
 pub mod interrupts;
 pub mod serial;
-pub mod gdt;
 pub mod time;
 
 use core::panic::PanicInfo;
@@ -49,7 +49,7 @@ pub fn init() {
 #[unsafe(no_mangle)]
 pub extern "C" fn kernel_main(multiboot_info_ptr: usize) -> ! {
     let boot_info = unsafe {
-BootInformation::load(multiboot_info_ptr as *const BootInformationHeader)
+        BootInformation::load(multiboot_info_ptr as *const BootInformationHeader)
             .expect("Failed to parse Multiboot2 structure")
     };
     if let Some(fb_tag) = boot_info.framebuffer_tag() {

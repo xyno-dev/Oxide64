@@ -1,15 +1,15 @@
 use core::arch::asm;
 
-use crate::{print, printerr, println};
 use crate::gdt;
+use crate::{print, printerr, println};
 use lazy_static::lazy_static;
 use pc_keyboard::DecodedKey::{RawKey, Unicode};
-use pc_keyboard::{HandleControl, PS2Keyboard, ScancodeSet1};
 use pc_keyboard::layouts::Uk105Key;
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
-use x86_64::instructions::port::Port;
+use pc_keyboard::{HandleControl, PS2Keyboard, ScancodeSet1};
 use pic8259::ChainedPics;
 use spin::{self, Mutex};
+use x86_64::instructions::port::Port;
+use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -94,14 +94,13 @@ extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
 }
 
 extern "x86-interrupt" fn double_fault_handler(
-    stack_frame: InterruptStackFrame, _error_code: u64) -> !
-{
+    stack_frame: InterruptStackFrame,
+    _error_code: u64,
+) -> ! {
     panic!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
 }
 
-extern "x86-interrupt" fn timer_interrupt_handler(
-    _stack_frame: InterruptStackFrame)
-{
+extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
     print!(".");
     unsafe {
         PICS.lock()
@@ -109,15 +108,12 @@ extern "x86-interrupt" fn timer_interrupt_handler(
     }
 }
 
-extern "x86-interrupt" fn keyboard_interrupt_handler(
-    _stack_frame: InterruptStackFrame)
-{
-    static KEYBOARD: Mutex<PS2Keyboard<Uk105Key, ScancodeSet1>> = 
-        Mutex::new(PS2Keyboard::new(
-            ScancodeSet1::new(),
-            Uk105Key,
-            HandleControl::Ignore
-        ));
+extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    static KEYBOARD: Mutex<PS2Keyboard<Uk105Key, ScancodeSet1>> = Mutex::new(PS2Keyboard::new(
+        ScancodeSet1::new(),
+        Uk105Key,
+        HandleControl::Ignore,
+    ));
 
     let mut port = Port::new(0x60);
     let scancode: u8 = unsafe { port.read() };
@@ -126,7 +122,7 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(
         if let Some(decoded_key) = keyboard.process_keyevent(key_event) {
             match decoded_key {
                 RawKey(key_code) => print!("{key_code:?}"),
-                Unicode(char) => print!("{char}")
+                Unicode(char) => print!("{char}"),
             }
         }
     }

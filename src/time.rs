@@ -1,46 +1,30 @@
-use core::arch::asm;
+use core::sync::atomic::Ordering;
+use x86_64::instructions::port::Port;
 
-use lazy_static::lazy_static;
-use x86_64::instructions::{interrupts, port::Port};
+use crate::interrupts;
 
-lazy_static! {
-    static ref TSC_SECS: f64 = 1.0 / cal_tsc() as f64;
-}
+pub fn init_pit() {
+    x86_64::instructions::interrupts::without_interrupts(|| unsafe {
+        let mut pit_cmd: Port<u8> = Port::new(0x43);
+        pit_cmd.write(0b00110110);
 
-fn cal_tsc() -> u64 {
-    let mut tsc_hertz: u64 = 0;
+        let mut ch0: Port<u8> = Port::new(0x40);
+        let divisor = 1193182/1000;
 
-    interrupts::without_interrupts(|| {
-        let start = secs();
-        while start + 1 > secs() {
-            continue;
-        }
-        let cal_start = secs();
-        let tsc_start = rdtsc();
-        while cal_start + 1 > secs() {
-            tsc_hertz = rdtsc() - tsc_start;
-        }
+        ch0.write((divisor & 0xFF) as u8);
+        ch0.write(((divisor >> 8) & 0xFF) as u8);
     });
-
-    tsc_hertz
 }
 
-fn rdtsc() -> u64 {
-    let edx: u64;
-    let eax: u64;
-
-    unsafe {
-        asm!(
-            "rdtsc", out("edx") edx, out("eax") eax,
-            options(readonly, nostack)
-        )
+pub fn sleep(millis: u64) {
+    let target = interrupts::TICKS.load(Ordering::Relaxed) + millis;
+    while interrupts::TICKS.load(Ordering::Relaxed) < target {
+        x86_64::instructions::hlt();
     }
-
-    edx << 32 | eax
 }
 
 fn read_rtc(index_address: u8) -> u8 {
-    interrupts::without_interrupts(|| unsafe {
+    x86_64::instructions::interrupts::without_interrupts(|| unsafe {
         let mut index_port: Port<u8> = Port::new(0x70);
         let mut data_port: Port<u8> = Port::new(0x71);
 
@@ -67,13 +51,3 @@ pub fn secs() -> u64 {
     rtc_secs() as u64 + rtc_mins() as u64 * 60 + rtc_hrs() as u64 * 3600
 }
 
-pub fn secs_prec() -> f64 {
-    rdtsc() as f64 * *TSC_SECS
-}
-
-pub fn sleep(secs: f64) {
-    let start = secs_prec();
-    while secs_prec() < start + secs {
-        continue;
-    }
-}

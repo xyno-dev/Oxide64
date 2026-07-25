@@ -10,12 +10,12 @@ pub mod graphics;
 pub mod interrupts;
 pub mod serial;
 pub mod time;
+pub mod speaker;
 
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};
 
 use graphics::*;
-use x86_64::instructions::port::Port;
 
 pub fn hlt_loop() -> ! {
     loop {
@@ -45,7 +45,8 @@ pub fn init() {
         interrupts::PICS.lock().initialize()
     };
     x86_64::instructions::interrupts::enable();
-    time::init_pit();
+    time::init_pit_channel_0();
+    speaker::init_pit_channel_2();
 }
 
 #[unsafe(no_mangle)]
@@ -85,6 +86,8 @@ pub extern "C" fn kernel_main(multiboot_info_ptr: usize) -> ! {
     graphics::splash();
     time::sleep(2500);
     graphics::clear_framebuffer();
+
+    speaker::beep(200, 200);
 
     #[cfg(test)]
     test_main();

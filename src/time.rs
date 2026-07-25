@@ -3,7 +3,7 @@ use x86_64::instructions::port::Port;
 
 use crate::interrupts;
 
-pub fn init_pit() {
+pub fn init_pit_channel_0() {
     x86_64::instructions::interrupts::without_interrupts(|| unsafe {
         let mut pit_cmd: Port<u8> = Port::new(0x43);
         pit_cmd.write(0b00110110);

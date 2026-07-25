@@ -16,7 +16,7 @@ kernel.bin : boot.o long_mode.o liboxide64.a
 	cp kernel.bin ./isodir/boot/kernel.bin
 
 run : oxide64.iso
-	qemu-system-x86_64 -enable-kvm -cdrom oxide64.iso -d int -D qemu.log
+	qemu-system-x86_64 -enable-kvm -cdrom oxide64.iso -d int -D qemu.log -machine pcspk-audiodev=speaker -audiodev pa,id=speaker
 
 flash : oxide64.iso
 	sudo dd if=oxide64.iso of=/dev/sda

@@ -12,13 +12,13 @@ pub fn init_pit_channel_2() {
     }
 }
 
-pub fn beep(frequency: u32, duration: u64) {
+pub fn beep(frequency: f32, duration: u64) {
     unsafe {
         let mut pc_speaker: Port<u8> = Port::new(0x61);
         let pc_speaker_data = pc_speaker.read() | SPEAKER_ENABLE;
         pc_speaker.write(pc_speaker_data);
 
-        let divisor = PIT_FREQ / frequency;
+        let divisor = (PIT_FREQ as f32 / frequency) as u16;
         let mut ch2: Port<u8> = Port::new(0x42);
         ch2.write((divisor & 0xFF) as u8);
         ch2.write(((divisor >> 8) & 0xFF) as u8);

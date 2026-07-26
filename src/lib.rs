@@ -84,10 +84,11 @@ pub extern "C" fn kernel_main(multiboot_info_ptr: usize) -> ! {
     init();
 
     graphics::splash();
-    time::sleep(2500);
+    speaker::beep(261.63, 350);
+    speaker::beep(329.63, 350);
+    speaker::beep(392.00, 350);
+    speaker::beep(523.25, 500);
     graphics::clear_framebuffer();
-
-    speaker::beep(200, 200);
 
     #[cfg(test)]
     test_main();

@@ -130,11 +130,6 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
         }
     }
 
-    unsafe { port.write(0xED) };
-    unsafe { port.write(0b00100000) };
-    let status = unsafe { port.read() };
-    println!("{status:?}");
-
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());

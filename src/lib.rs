@@ -88,13 +88,31 @@ pub extern "C" fn kernel_main(multiboot_info_ptr: usize) -> ! {
     speaker::beep(329.63, 350);
     speaker::beep(392.00, 350);
     speaker::beep(523.25, 500);
+    time::sleep(1000);
     graphics::clear_framebuffer();
+
+    time::sleep(1000);
 
     #[cfg(test)]
     test_main();
 
     #[cfg(test)]
     println!("SUCCESS");
+
+    println!("Welcome to Oxide64!");
+    speaker::beep(800.0, 50);
+    time::sleep(1000);
+    println!("You are currently in Ring 0. Not like you can do anything with it.");
+    speaker::beep(800.0, 50);
+    time::sleep(1000);
+    println!("There is no shell, nor any way to interact with the file system.");
+    speaker::beep(800.0, 50);
+    time::sleep(1000);
+    println!("You may type as if this were a text editor.");
+    speaker::beep(800.0, 50);
+    time::sleep(1000);
+    println!("Have fun!");
+    speaker::beep(800.0, 50);
 
     hlt_loop();
 }

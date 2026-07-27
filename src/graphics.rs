@@ -67,6 +67,9 @@ impl Writer {
             b'\n' => {
                 self.newline();
             }
+            b'\x08' => {
+                self.backspace();
+            }
             b => {
                 if self.column >= COLS {
                     self.newline();
@@ -83,6 +86,23 @@ impl Writer {
         }
         self.text_buffer[ROWS - 1] = [b' '; COLS];
         self.column = 0;
+    }
+
+    fn backspace(&mut self) {
+        if self.column == 0 {
+            for row in (1..ROWS).rev() {
+                self.text_buffer[row] = self.text_buffer[row - 1];
+            }
+            for column in 0..COLS {
+                let char = self.text_buffer[ROWS - 1][column];
+                if char != b' '{
+                    self.column = column + 1;
+                }
+            }
+        } else {
+            self.column -= 1;
+            self.text_buffer[ROWS - 1][self.column] = b' ';
+        }
     }
 
     fn draw(&mut self, fb: &mut FrameBuffer) {

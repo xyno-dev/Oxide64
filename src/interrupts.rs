@@ -123,9 +123,8 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
     let mut keyboard = KEYBOARD.lock();
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
         if let Some(decoded_key) = keyboard.process_keyevent(key_event) {
-            match decoded_key {
-                RawKey(key_code) => print!("{key_code:?}"),
-                Unicode(char) => print!("{char}"),
+            if let Unicode(char) = decoded_key {
+                print!("{char}");
             }
         }
     }

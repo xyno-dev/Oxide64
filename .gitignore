@@ -1,1 +1,11 @@
 /target
+/src/boot.o
+/src/long_mode.o
+kernel.bin
+oxide64.iso
+oxide64-test.iso
+qemu.log
+isodir/boot/assets/*
+isodir/boot/kernel.bin
+disk.img
+

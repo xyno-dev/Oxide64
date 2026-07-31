@@ -11,6 +11,7 @@ pub mod interrupts;
 pub mod serial;
 pub mod time;
 pub mod speaker;
+pub mod fat;
 
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};
@@ -47,6 +48,7 @@ pub fn init() {
     x86_64::instructions::interrupts::enable();
     time::init_pit_channel_0();
     speaker::init_pit_channel_2();
+    fat::init();
 }
 
 #[unsafe(no_mangle)]

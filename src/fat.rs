@@ -22,6 +22,17 @@ struct Bpb {
     large_sector_count: u32
 }
 
+#[derive(Debug)]
+#[repr(C, packed)]
+struct Ebpb {
+    drive: u8,
+    nt_flags: u8,
+    signature: u8,
+    volume_serial: u32,
+    volume_label: [u8; 11],
+    sys_id: [u8; 8]
+}
+
 unsafe fn wait_until_not_busy() {
     unsafe {
         let io_base = 0x1F0;
@@ -73,11 +84,25 @@ fn read_bpb() {
         let sector_zero = read_sectors(0, 0, 0, 1);
         let bpb_data: &[u16] = &sector_zero[..18];
 
-        println!("RAW 16 PACKETS FROM SECTOR 0:\n{:?}\n", bpb_data);
+        println!("0 - 18 WORDS FROM SECTOR 0:\n{:?}\n", bpb_data);
 
         let bpb: Bpb = transmute::<[u16; 18], Bpb>(bpb_data.try_into().unwrap());
         println!("BPB STRUCT:\n{:?}\n", bpb);
         println!("FAT16 OEM IDENTIFIER: {}\n", str::from_utf8_unchecked(&bpb.oem));
+    }
+}
+
+fn read_ebpb() {
+    unsafe {
+        let sector_zero = read_sectors(0, 0, 0, 1);
+        let ebpb_data: &[u16] = &sector_zero[18..31];
+
+        println!("18 - 31 WORDS FROM SECTOR 0:\n{:?}\n", ebpb_data);
+
+        let ebpb: Ebpb = transmute::<[u16; 13], Ebpb>(ebpb_data.try_into().unwrap());
+        println!("EBPB STRUCT:\n{:?}\n", ebpb);
+        println!("FAT16 VOLUME LABEL: {}\n", str::from_utf8_unchecked(&ebpb.volume_label));
+        println!("FAT16 SYS ID: {}\n", str::from_utf8_unchecked(&ebpb.sys_id));
     }
 }
 
@@ -128,6 +153,7 @@ pub fn init() {
             }
             
             read_bpb();
+            read_ebpb();
         }
     });
 }

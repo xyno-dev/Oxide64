@@ -1,5 +1,5 @@
 use embedded_graphics::{
-    image::Image, mono_font::{MonoTextStyle, MonoTextStyleBuilder, ascii::FONT_6X10}, pixelcolor::Rgb888, prelude::*, text::{Baseline, Text, renderer::TextRenderer},
+    image::Image, mono_font::{MonoTextStyle, MonoTextStyleBuilder, ascii::FONT_6X10}, pixelcolor::Rgb888, prelude::*, primitives::{PrimitiveStyleBuilder, Rectangle}, text::{Baseline, Text, renderer::TextRenderer},
 };
 
 use tinyqoi::Qoi;
@@ -86,6 +86,13 @@ impl Writer {
         }
         self.text_buffer[ROWS - 1] = [b' '; COLS];
         self.column = 0;
+        let clear = PrimitiveStyleBuilder::new()
+            .fill_color(Rgb888::BLACK)
+            .build();
+        Rectangle::new(Point::new(1000, 741), Size::new(24, 9))
+            .into_styled(clear)
+            .draw(FRAME_BUFFER.lock().as_mut().unwrap())
+            .unwrap();
     }
 
     fn backspace(&mut self) {
@@ -116,6 +123,15 @@ impl Writer {
             Text::new(s, Point::new(0, (i * 11) as i32), style)
                 .draw(fb)
                 .unwrap();
+            if i == ROWS - 1 {
+                let cursor = PrimitiveStyleBuilder::new()
+                    .fill_color(Rgb888::WHITE)
+                    .build();
+                Rectangle::new(Point::new((self.column * 6) as i32, 741), Size::new(6, 9))
+                    .into_styled(cursor)
+                    .draw(fb)
+                    .unwrap();
+            }
         }
     }
 }

@@ -66,8 +66,9 @@ fn read_bpb() {
 
         println!("RAW 16 PACKETS FROM SECTOR 0:\n{:?}\n", bpb_data);
 
-        let bpb_ref: Bpb = transmute::<[u16; 18], Bpb>(bpb_data.try_into().unwrap());
-        println!("BPB STRUCT:\n{:?}\n", bpb_ref)
+        let bpb: Bpb = transmute::<[u16; 18], Bpb>(bpb_data.try_into().unwrap());
+        println!("BPB STRUCT:\n{:?}\n", bpb);
+        println!("FAT16 OEM IDENTIFIER: {}\n", str::from_utf8_unchecked(&bpb.oem));
     }
 }
 

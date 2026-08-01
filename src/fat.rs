@@ -22,6 +22,20 @@ struct Bpb {
     large_sector_count: u32
 }
 
+unsafe fn wait_until_not_busy() {
+    unsafe {
+        let io_base = 0x1F0;
+        let mut command_register = Port::<u8>::new(io_base + 7);
+
+        let mut response = command_register.read();
+
+        while ((response >> 7) & 0b01) == 1 || ((response >> 3) & 1) != 1 {
+            response = command_register.read();
+            println!("{response:b}");
+        }
+    }
+}
+
 unsafe fn read_sectors(lbalo: u8, lbamid: u8, lbahi: u8, sectors: u8) -> [u16; 256] {
     unsafe {
         let io_base = 0x1F0;
@@ -42,12 +56,7 @@ unsafe fn read_sectors(lbalo: u8, lbamid: u8, lbahi: u8, sectors: u8) -> [u16; 2
 
         command_register.write(0x20);
         
-        let mut response = command_register.read();
-
-        while ((response >> 7) & 0b01) == 1 || ((response >> 3) & 1) != 1 {
-            response = command_register.read();
-            println!("{response:b}");
-        }
+        wait_until_not_busy();
 
         let mut data = [0 as u16; 256];
 
@@ -94,7 +103,7 @@ pub fn init() {
             Port::<u8>::new(io_base + 6).write(0xE0);
 
             command_register.write(0xEC);
-            let mut response = command_register.read();
+            let response = command_register.read();
             if response == 0 {
                 panic!("\
                     No ATA storage detected!\n\
@@ -112,10 +121,7 @@ pub fn init() {
                 ")
             }
 
-            while ((response >> 7) & 0b01) == 1 || ((response >> 3) & 1) != 1 {
-                response = command_register.read();
-                println!("{response:b}");
-            }
+            wait_until_not_busy();
 
             for _ in 0..256 {
                 data_register.read();

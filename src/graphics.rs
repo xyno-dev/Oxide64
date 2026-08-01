@@ -17,7 +17,7 @@ pub static FRAME_BUFFER: Mutex<Option<FrameBuffer>> = Mutex::new(None);
 pub static WRITER: Mutex<Option<Writer>> = Mutex::new(None);
 
 pub const ROWS: usize = 768 / 11;
-pub const COLS: usize = 1024 / 7;
+pub const COLS: usize = 1024 / 6;
 
 pub struct FrameBuffer {
     pub buffer: &'static mut [u8],

@@ -79,7 +79,16 @@ unsafe fn read_sectors(lbalo: u8, lbamid: u8, lbahi: u8, sectors: u8) -> [u16; 2
     }
 }
 
-fn read_bpb() {
+fn calc_first_root_dir_sector(bpb: &Bpb) -> u16 {
+    let root_dir_sectors =
+        (bpb.root_dir_entries * 32) + (bpb.bytes_per_sector - 1) / bpb.bytes_per_sector;
+    let first_data_sector =
+        bpb.reserved_sectors + (bpb.fats as u16 * bpb.sectors_per_fat) + root_dir_sectors;
+    
+    first_data_sector - root_dir_sectors
+}
+
+fn read_bpb() -> Bpb {
     unsafe {
         let sector_zero = read_sectors(0, 0, 0, 1);
         let bpb_data: &[u16] = &sector_zero[..18];
@@ -89,10 +98,12 @@ fn read_bpb() {
         let bpb: Bpb = transmute::<[u16; 18], Bpb>(bpb_data.try_into().unwrap());
         println!("BPB STRUCT:\n{:?}\n", bpb);
         println!("FAT16 OEM IDENTIFIER: {}\n", str::from_utf8_unchecked(&bpb.oem));
+
+        bpb
     }
 }
 
-fn read_ebpb() {
+fn read_ebpb() -> Ebpb {
     unsafe {
         let sector_zero = read_sectors(0, 0, 0, 1);
         let ebpb_data: &[u16] = &sector_zero[18..31];
@@ -103,6 +114,8 @@ fn read_ebpb() {
         println!("EBPB STRUCT:\n{:?}\n", ebpb);
         println!("FAT16 VOLUME LABEL: {}\n", str::from_utf8_unchecked(&ebpb.volume_label));
         println!("FAT16 SYS ID: {}\n", str::from_utf8_unchecked(&ebpb.sys_id));
+
+        ebpb
     }
 }
 
@@ -152,8 +165,14 @@ pub fn init() {
                 data_register.read();
             }
             
-            read_bpb();
+            let bpb = read_bpb();
             read_ebpb();
+            let first_root_dir_sector = calc_first_root_dir_sector(&bpb) as u32;
+            let lbalo = (first_root_dir_sector & 0b11111111) as u8;
+            let lbamid = ((first_root_dir_sector >> 8) & 0b11111111) as u8;
+            let lbahi = ((first_root_dir_sector >> 16) & 0b11111111) as u8;
+            let sector: [u8; 512] = transmute(read_sectors(lbalo, lbamid, lbahi, 0));
+            println!("FIRST ROOT DIR SECTOR:\n{:X?}\n", sector)
         }
     });
 }

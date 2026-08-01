@@ -24,7 +24,12 @@ To build Oxide64, run `make` in the project's root directory.
 
 ## Running
 
-Make is also used to run Oxide64.
+Make can be used to run a QEMU/KVM virtual machine for Oxide64.
+Whether or not you are using the Make command, there are prerequisites
+you must meet before running the kernel:
+
+- A master disk connected through the virtual PATA/IDE interface formatted
+with the DOS/MBR partitoning scheme and FAT16 file system
 
 To run Oxide64, run `make run` in the project's root directory.
 

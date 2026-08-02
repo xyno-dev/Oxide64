@@ -1,4 +1,5 @@
 use core::mem::transmute;
+use heapless::Vec;
 use x86_64::instructions::{self, port::Port};
 
 use crate::println;
@@ -167,12 +168,34 @@ pub fn init() {
             
             let bpb = read_bpb();
             read_ebpb();
+            println!("SECTORS PER CLUSTER: {}", &bpb.sectors_per_cluster);
             let first_root_dir_sector = calc_first_root_dir_sector(&bpb) as u32;
             let lbalo = (first_root_dir_sector & 0b11111111) as u8;
             let lbamid = ((first_root_dir_sector >> 8) & 0b11111111) as u8;
             let lbahi = ((first_root_dir_sector >> 16) & 0b11111111) as u8;
             let sector: [u8; 512] = transmute(read_sectors(lbalo, lbamid, lbahi, 0));
-            println!("FIRST ROOT DIR SECTOR:\n{:X?}\n", sector)
+            println!("FIRST ROOT DIR SECTOR:\n{:X?}\n", sector);
+
+            let mut entries: Vec<&[u8], 1024> = Vec::new();
+            let mut zero_count = 0;
+            for (i, byte) in sector.iter().enumerate() {
+                if *byte == 0 {
+                    zero_count += 1;
+                } else {
+                    if zero_count > 4 {
+                        entries.push(&sector[i..(i + 32)]).unwrap();
+                    }
+                    zero_count = 0;
+                }
+            }
+            println!("DIR ENTRIES: {:X?}", entries);
+            for entry in entries {
+                println!(
+                    "{}.{}",
+                    str::from_utf8_unchecked(&entry[0..8]).trim(),
+                    str::from_utf8_unchecked(&entry[8..11])
+                );
+            }
         }
     });
 }

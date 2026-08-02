@@ -190,10 +190,15 @@ pub fn init() {
             }
             println!("DIR ENTRIES: {:X?}", entries);
             for entry in entries {
+                let file_size = &entry[28] >> 24
+                    | &entry[29] >> 16
+                    | &entry[30] >> 8
+                    | &entry[31];
                 println!(
-                    "{}.{}",
+                    "File: {}.{} Size: {} bytes",
                     str::from_utf8_unchecked(&entry[0..8]).trim(),
-                    str::from_utf8_unchecked(&entry[8..11])
+                    str::from_utf8_unchecked(&entry[8..11]),
+                    file_size
                 );
             }
         }

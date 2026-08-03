@@ -125,6 +125,37 @@ fn read_bpb() -> Bpb {
     }
 }
 
+fn list_directories(bpb: &Bpb) -> Vec<Directory, 512> {
+    let first_root_dir_sector_number = calc_first_root_dir_sector(&bpb) as u32;
+    let root_dir_sectors = ((bpb.root_dir_entries as u32 * 32) + (bpb.bytes_per_sector as u32 - 1))
+        / bpb.bytes_per_sector as u32;
+
+    let mut entries: Vec<Directory, 512> = Vec::new();
+    let mut zero_count = 0;
+
+    unsafe {
+        for i in 0..root_dir_sectors {
+            let sector: [u8; 512] = transmute(read_sectors(first_root_dir_sector_number + i, 1));
+            for (i, byte) in sector.iter().enumerate() {
+                if *byte == 0 {
+                    zero_count += 1;
+                } else {
+                    if zero_count > 4 {
+                        entries
+                            .push(transmute::<[u8; 32], Directory>(
+                                sector[i..(i + 32)].try_into().unwrap(),
+                            ))
+                            .unwrap();
+                    }
+                    zero_count = 0;
+                }
+            }
+        }
+    }
+
+    entries
+}
+
 fn read_ebpb() -> Ebpb {
     unsafe {
         let sector_zero = read_sectors(0, 1);
@@ -194,27 +225,7 @@ pub fn init() {
         let bpb = read_bpb();
         read_ebpb();
         println!("SECTORS PER CLUSTER: {}", &bpb.sectors_per_cluster);
-        let first_root_dir_sector = calc_first_root_dir_sector(&bpb) as u32;
-        let sector: [u8; 512] = transmute(read_sectors(first_root_dir_sector, 1));
-        println!("FIRST ROOT DIR SECTOR:\n{:X?}\n", sector);
 
-        let mut entries: Vec<Directory, 16> = Vec::new();
-        let mut zero_count = 0;
-        for (i, byte) in sector.iter().enumerate() {
-            if *byte == 0 {
-                zero_count += 1;
-            } else {
-                if zero_count > 4 {
-                    entries
-                        .push(transmute::<[u8; 32], Directory>(
-                            sector[i..(i + 32)].try_into().unwrap(),
-                        ))
-                        .unwrap();
-                }
-                zero_count = 0;
-            }
-        }
-        println!("DIR ENTRIES: {:X?}", entries);
         let sectors_per_cluster = bpb.sectors_per_cluster as u16;
         let root_dir_sectors = ((bpb.root_dir_entries as u32 * 32)
             + (bpb.bytes_per_sector as u32 - 1))
@@ -222,7 +233,7 @@ pub fn init() {
         let data_start_sector = bpb.reserved_sectors as u32
             + (bpb.fats as u32 * bpb.sectors_per_fat as u32)
             + root_dir_sectors as u32;
-        for entry in entries {
+        for entry in list_directories(&bpb) {
             let entry_size = entry.size;
             let cluster_low = entry.cluster_low;
             let first_sector =

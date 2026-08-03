@@ -20,7 +20,7 @@ struct Bpb {
     sectors_per_track: u16,
     sides: u16,
     hidden_sectors: u32,
-    large_sector_count: u32
+    large_sector_count: u32,
 }
 
 #[derive(Debug)]
@@ -31,7 +31,7 @@ struct Ebpb {
     signature: u8,
     volume_serial: u32,
     volume_label: [u8; 11],
-    sys_id: [u8; 8]
+    sys_id: [u8; 8],
 }
 
 #[derive(Debug)]
@@ -49,7 +49,7 @@ struct Directory {
     last_modified_time: u16,
     last_modified_date: u16,
     cluster_low: u16,
-    size: u32
+    size: u32,
 }
 
 unsafe fn wait_until_not_busy() {
@@ -81,11 +81,11 @@ unsafe fn read_sectors(lbalo: u8, lbamid: u8, lbahi: u8, sectors: u8) -> [u16; 2
         lba_low.write(lbalo);
         lba_mid.write(lbamid);
         lba_high.write(lbahi);
-        
+
         Port::<u8>::new(io_base + 6).write(0xE0);
 
         command_register.write(0x20);
-        
+
         wait_until_not_busy();
 
         let mut data = [0 as u16; 256];
@@ -103,7 +103,7 @@ fn calc_first_root_dir_sector(bpb: &Bpb) -> u16 {
         (bpb.root_dir_entries * 32) + (bpb.bytes_per_sector - 1) / bpb.bytes_per_sector;
     let first_data_sector =
         bpb.reserved_sectors + (bpb.fats as u16 * bpb.sectors_per_fat) + root_dir_sectors;
-    
+
     first_data_sector - root_dir_sectors
 }
 
@@ -116,7 +116,10 @@ fn read_bpb() -> Bpb {
 
         let bpb: Bpb = transmute::<[u16; 18], Bpb>(bpb_data.try_into().unwrap());
         println!("BPB STRUCT:\n{:?}\n", bpb);
-        println!("FAT16 OEM IDENTIFIER: {}\n", str::from_utf8_unchecked(&bpb.oem));
+        println!(
+            "FAT16 OEM IDENTIFIER: {}\n",
+            str::from_utf8_unchecked(&bpb.oem)
+        );
 
         bpb
     }
@@ -131,7 +134,10 @@ fn read_ebpb() -> Ebpb {
 
         let ebpb: Ebpb = transmute::<[u16; 13], Ebpb>(ebpb_data.try_into().unwrap());
         println!("EBPB STRUCT:\n{:?}\n", ebpb);
-        println!("FAT16 VOLUME LABEL: {}\n", str::from_utf8_unchecked(&ebpb.volume_label));
+        println!(
+            "FAT16 VOLUME LABEL: {}\n",
+            str::from_utf8_unchecked(&ebpb.volume_label)
+        );
         println!("FAT16 SYS ID: {}\n", str::from_utf8_unchecked(&ebpb.sys_id));
 
         ebpb
@@ -139,83 +145,87 @@ fn read_ebpb() -> Ebpb {
 }
 
 pub fn init() {
-    instructions::interrupts::without_interrupts(|| {
-        unsafe {
-            let io_base = 0x1F0;
-            let mut data_register = Port::<u16>::new(io_base);
-            let mut command_register = Port::<u8>::new(io_base + 7);
-            let mut sector_count = Port::<u8>::new(io_base + 2);
+    instructions::interrupts::without_interrupts(|| unsafe {
+        let io_base = 0x1F0;
+        let mut data_register = Port::<u16>::new(io_base);
+        let mut command_register = Port::<u8>::new(io_base + 7);
+        let mut sector_count = Port::<u8>::new(io_base + 2);
 
-            let mut lba_low = Port::<u8>::new(io_base + 3);
-            let mut lba_mid = Port::<u8>::new(io_base + 4);
-            let mut lba_high = Port::<u8>::new(io_base + 5);
+        let mut lba_low = Port::<u8>::new(io_base + 3);
+        let mut lba_mid = Port::<u8>::new(io_base + 4);
+        let mut lba_high = Port::<u8>::new(io_base + 5);
 
-            Port::<u8>::new(0x3F6).write(0x02); 
+        Port::<u8>::new(0x3F6).write(0x02);
 
-            sector_count.write(1);
-            lba_low.write(0);
-            lba_mid.write(0);
-            lba_high.write(0);
+        sector_count.write(1);
+        lba_low.write(0);
+        lba_mid.write(0);
+        lba_high.write(0);
 
-            Port::<u8>::new(io_base + 6).write(0xE0);
+        Port::<u8>::new(io_base + 6).write(0xE0);
 
-            command_register.write(0xEC);
-            let response = command_register.read();
-            if response == 0 {
-                panic!("\
+        command_register.write(0xEC);
+        let response = command_register.read();
+        if response == 0 {
+            panic!(
+                "\
                     No ATA storage detected!\n\
                     Is there a hard drive plugged in?\
-                ")
-            }
+                "
+            )
+        }
 
-            if Port::<u16>::new(io_base + 4).read() != 0 ||
-                Port::<u16>::new(io_base + 5).read() != 0
-            {
-                println!("\
+        if Port::<u16>::new(io_base + 4).read() != 0 || Port::<u16>::new(io_base + 5).read() != 0 {
+            println!(
+                "\
                     Disk is not a base ATA device!\n\
                     Are you using a hard drive?\n\
                     Continuing anyway...
-                ")
-            }
+                "
+            )
+        }
 
-            wait_until_not_busy();
+        wait_until_not_busy();
 
-            for _ in 0..256 {
-                data_register.read();
-            }
-            
-            let bpb = read_bpb();
-            read_ebpb();
-            println!("SECTORS PER CLUSTER: {}", &bpb.sectors_per_cluster);
-            let first_root_dir_sector = calc_first_root_dir_sector(&bpb) as u32;
-            let lbalo = (first_root_dir_sector & 0b11111111) as u8;
-            let lbamid = ((first_root_dir_sector >> 8) & 0b11111111) as u8;
-            let lbahi = ((first_root_dir_sector >> 16) & 0b11111111) as u8;
-            let sector: [u8; 512] = transmute(read_sectors(lbalo, lbamid, lbahi, 0));
-            println!("FIRST ROOT DIR SECTOR:\n{:X?}\n", sector);
+        for _ in 0..256 {
+            data_register.read();
+        }
 
-            let mut entries: Vec<Directory, 16> = Vec::new();
-            let mut zero_count = 0;
-            for (i, byte) in sector.iter().enumerate() {
-                if *byte == 0 {
-                    zero_count += 1;
-                } else {
-                    if zero_count > 4 {
-                        entries.push(transmute::<[u8; 32], Directory>(sector[i..(i + 32)].try_into().unwrap())).unwrap();
-                    }
-                    zero_count = 0;
+        let bpb = read_bpb();
+        read_ebpb();
+        println!("SECTORS PER CLUSTER: {}", &bpb.sectors_per_cluster);
+        let first_root_dir_sector = calc_first_root_dir_sector(&bpb) as u32;
+        let lbalo = (first_root_dir_sector & 0b11111111) as u8;
+        let lbamid = ((first_root_dir_sector >> 8) & 0b11111111) as u8;
+        let lbahi = ((first_root_dir_sector >> 16) & 0b11111111) as u8;
+        let sector: [u8; 512] = transmute(read_sectors(lbalo, lbamid, lbahi, 0));
+        println!("FIRST ROOT DIR SECTOR:\n{:X?}\n", sector);
+
+        let mut entries: Vec<Directory, 16> = Vec::new();
+        let mut zero_count = 0;
+        for (i, byte) in sector.iter().enumerate() {
+            if *byte == 0 {
+                zero_count += 1;
+            } else {
+                if zero_count > 4 {
+                    entries
+                        .push(transmute::<[u8; 32], Directory>(
+                            sector[i..(i + 32)].try_into().unwrap(),
+                        ))
+                        .unwrap();
                 }
+                zero_count = 0;
             }
-            println!("DIR ENTRIES: {:X?}", entries);
-            for entry in entries {
-                let entry_size = entry.size;
-                println!(
-                    "File: {}.{} Size: {} bytes",
-                    str::from_utf8_unchecked(&entry.name).trim(),
-                    str::from_utf8_unchecked(&entry.extension),
-                    entry_size
-                );
-            }
+        }
+        println!("DIR ENTRIES: {:X?}", entries);
+        for entry in entries {
+            let entry_size = entry.size;
+            println!(
+                "File: {}.{} Size: {} bytes",
+                str::from_utf8_unchecked(&entry.name).trim(),
+                str::from_utf8_unchecked(&entry.extension),
+                entry_size
+            );
         }
     });
 }

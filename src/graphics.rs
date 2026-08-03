@@ -1,5 +1,10 @@
 use embedded_graphics::{
-    image::Image, mono_font::{MonoTextStyle, MonoTextStyleBuilder, ascii::FONT_6X10}, pixelcolor::Rgb888, prelude::*, primitives::{PrimitiveStyleBuilder, Rectangle}, text::{Baseline, Text, renderer::TextRenderer},
+    image::Image,
+    mono_font::{MonoTextStyle, MonoTextStyleBuilder, ascii::FONT_6X10},
+    pixelcolor::Rgb888,
+    prelude::*,
+    primitives::{PrimitiveStyleBuilder, Rectangle},
+    text::{Baseline, Text, renderer::TextRenderer},
 };
 
 use tinyqoi::Qoi;
@@ -102,7 +107,7 @@ impl Writer {
             }
             for column in 0..COLS {
                 let char = self.text_buffer[ROWS - 1][column];
-                if char != b' '{
+                if char != b' ' {
                     self.column = column + 1;
                 }
             }
@@ -207,7 +212,8 @@ pub fn splash() {
     if let Some(frame_buffer) = FRAME_BUFFER.lock().as_mut() {
         frame_buffer.clear(Rgb888::BLACK);
         Image::new(&qoi, Point::new(1024 / 2 - 256, 768 / 2 - 256))
-            .draw(frame_buffer).unwrap();
+            .draw(frame_buffer)
+            .unwrap();
     }
 }
 

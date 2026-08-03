@@ -9,7 +9,7 @@ pub fn init_pit_channel_0() {
         pit_cmd.write(0b00110110);
 
         let mut ch0: Port<u8> = Port::new(0x40);
-        let divisor = 1193182/1000;
+        let divisor = 1193182 / 1000;
 
         ch0.write((divisor & 0xFF) as u8);
         ch0.write(((divisor >> 8) & 0xFF) as u8);
@@ -50,4 +50,3 @@ pub fn rtc_hrs() -> u8 {
 pub fn secs() -> u64 {
     rtc_secs() as u64 + rtc_mins() as u64 * 60 + rtc_hrs() as u64 * 3600
 }
-

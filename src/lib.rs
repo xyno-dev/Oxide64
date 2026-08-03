@@ -5,13 +5,13 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+pub mod fat;
 pub mod gdt;
 pub mod graphics;
 pub mod interrupts;
 pub mod serial;
-pub mod time;
 pub mod speaker;
-pub mod fat;
+pub mod time;
 
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};

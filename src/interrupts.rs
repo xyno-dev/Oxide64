@@ -3,6 +3,7 @@ use core::sync::atomic::{AtomicU64, Ordering};
 
 use crate::gdt;
 use crate::{print, printerr, println};
+use heapless::Vec;
 use lazy_static::lazy_static;
 use pc_keyboard::DecodedKey::{RawKey, Unicode};
 use pc_keyboard::layouts::Uk105Key;
@@ -19,6 +20,8 @@ pub static PICS: spin::Mutex<ChainedPics> =
     spin::Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
 
 pub static TICKS: AtomicU64 = AtomicU64::new(0);
+
+pub static KEYBOARD_BUF: spin::Mutex<Vec<char, 256>> = spin::Mutex::new(Vec::new());
 
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
@@ -125,6 +128,9 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
         if let Some(decoded_key) = keyboard.process_keyevent(key_event) {
             if let Unicode(char) = decoded_key {
                 print!("{char}");
+                let mut buffer = KEYBOARD_BUF.lock();
+                buffer.truncate(255);
+                buffer.push(char).unwrap();
             }
         }
     }

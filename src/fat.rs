@@ -6,50 +6,50 @@ use crate::println;
 
 #[derive(Debug)]
 #[repr(C, packed)]
-struct Bpb {
-    jmp: [u8; 3],
-    oem: [u8; 8],
-    bytes_per_sector: u16,
-    sectors_per_cluster: u8,
-    reserved_sectors: u16,
-    fats: u8,
-    root_dir_entries: u16,
-    total_sectors: u16,
-    media_desc_type: u8,
-    sectors_per_fat: u16,
-    sectors_per_track: u16,
-    sides: u16,
-    hidden_sectors: u32,
-    large_sector_count: u32,
+pub struct Bpb {
+    pub jmp: [u8; 3],
+    pub oem: [u8; 8],
+    pub bytes_per_sector: u16,
+    pub sectors_per_cluster: u8,
+    pub reserved_sectors: u16,
+    pub fats: u8,
+    pub root_dir_entries: u16,
+    pub total_sectors: u16,
+    pub media_desc_type: u8,
+    pub sectors_per_fat: u16,
+    pub sectors_per_track: u16,
+    pub sides: u16,
+    pub hidden_sectors: u32,
+    pub large_sector_count: u32,
 }
 
 #[derive(Debug)]
 #[repr(C, packed)]
-struct Ebpb {
-    drive: u8,
-    nt_flags: u8,
-    signature: u8,
-    volume_serial: u32,
-    volume_label: [u8; 11],
-    sys_id: [u8; 8],
+pub struct Ebpb {
+    pub drive: u8,
+    pub nt_flags: u8,
+    pub signature: u8,
+    pub volume_serial: u32,
+    pub volume_label: [u8; 11],
+    pub sys_id: [u8; 8],
 }
 
 #[derive(Debug)]
 #[repr(C, packed)]
-struct Directory {
-    name: [u8; 8],
-    extension: [u8; 3],
-    attributes: u8,
-    reserved: u8,
-    time_taken: u8,
-    creation_time: u16,
-    creation_date: u16,
-    last_accessed: u16,
-    cluster_high: u16,
-    last_modified_time: u16,
-    last_modified_date: u16,
-    cluster_low: u16,
-    size: u32,
+pub struct Directory {
+    pub name: [u8; 8],
+    pub extension: [u8; 3],
+    pub attributes: u8,
+    pub reserved: u8,
+    pub time_taken: u8,
+    pub creation_time: u16,
+    pub creation_date: u16,
+    pub last_accessed: u16,
+    pub cluster_high: u16,
+    pub last_modified_time: u16,
+    pub last_modified_date: u16,
+    pub cluster_low: u16,
+    pub size: u32,
 }
 
 unsafe fn wait_until_not_busy() {
@@ -61,7 +61,6 @@ unsafe fn wait_until_not_busy() {
 
         while ((response >> 7) & 0b01) == 1 || ((response >> 3) & 1) != 1 {
             response = command_register.read();
-            println!("{response:b}");
         }
     }
 }
@@ -107,44 +106,29 @@ fn calc_first_root_dir_sector(bpb: &Bpb) -> u16 {
     first_data_sector - root_dir_sectors
 }
 
-fn read_bpb() -> Bpb {
+pub fn read_bpb() -> Bpb {
     unsafe {
         let sector_zero = read_sectors(0, 1);
         let bpb_data: &[u16] = &sector_zero[..18];
 
-        println!("0 - 18 WORDS FROM SECTOR 0:\n{:?}\n", bpb_data);
-
         let bpb: Bpb = transmute::<[u16; 18], Bpb>(bpb_data.try_into().unwrap());
-        println!("BPB STRUCT:\n{:?}\n", bpb);
-        println!(
-            "FAT16 OEM IDENTIFIER: {}\n",
-            str::from_utf8_unchecked(&bpb.oem)
-        );
 
         bpb
     }
 }
 
-fn read_ebpb() -> Ebpb {
+pub fn read_ebpb() -> Ebpb {
     unsafe {
         let sector_zero = read_sectors(0, 1);
         let ebpb_data: &[u16] = &sector_zero[18..31];
 
-        println!("18 - 31 WORDS FROM SECTOR 0:\n{:?}\n", ebpb_data);
-
         let ebpb: Ebpb = transmute::<[u16; 13], Ebpb>(ebpb_data.try_into().unwrap());
-        println!("EBPB STRUCT:\n{:?}\n", ebpb);
-        println!(
-            "FAT16 VOLUME LABEL: {}\n",
-            str::from_utf8_unchecked(&ebpb.volume_label)
-        );
-        println!("FAT16 SYS ID: {}\n", str::from_utf8_unchecked(&ebpb.sys_id));
 
         ebpb
     }
 }
 
-fn list_directories(bpb: &Bpb) -> Vec<Directory, 512> {
+pub fn list_directories(bpb: &Bpb) -> Vec<Directory, 512> {
     let first_root_dir_sector_number = calc_first_root_dir_sector(&bpb) as u32;
     let root_dir_sectors = ((bpb.root_dir_entries as u32 * 32) + (bpb.bytes_per_sector as u32 - 1))
         / bpb.bytes_per_sector as u32;
@@ -175,7 +159,7 @@ fn list_directories(bpb: &Bpb) -> Vec<Directory, 512> {
     entries
 }
 
-fn read_file(entry: &Directory, bpb: &Bpb) -> Vec<u8, 1024> {
+pub fn read_file(entry: &Directory, bpb: &Bpb) -> Vec<u8, 1024> {
     let sectors_per_cluster = bpb.sectors_per_cluster as u16;
     let root_dir_sectors = ((bpb.root_dir_entries as u32 * 32) + (bpb.bytes_per_sector as u32 - 1))
         / bpb.bytes_per_sector as u32;
@@ -188,12 +172,6 @@ fn read_file(entry: &Directory, bpb: &Bpb) -> Vec<u8, 1024> {
     let first_sector = data_start_sector + (cluster_low as u32 - 2) * sectors_per_cluster as u32;
 
     unsafe {
-        println!(
-            "File: {}.{} Size: {} bytes",
-            str::from_utf8_unchecked(&entry.name).trim(),
-            str::from_utf8_unchecked(&entry.extension),
-            entry_size
-        );
         let data_sector: [u8; 512] = transmute(read_sectors(first_sector as u32, 1));
 
         Vec::from_slice(&data_sector[0..entry_size as usize]).unwrap()

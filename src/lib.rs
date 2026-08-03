@@ -12,6 +12,7 @@ pub mod interrupts;
 pub mod serial;
 pub mod speaker;
 pub mod time;
+pub mod shell;
 
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};
@@ -116,7 +117,7 @@ pub extern "C" fn kernel_main(multiboot_info_ptr: usize) -> ! {
     println!("Have fun!");
     speaker::beep(800.0, 50);
 
-    hlt_loop();
+    shell::shell_loop();
 }
 
 #[test_case]

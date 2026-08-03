@@ -195,7 +195,7 @@ pub fn init() {
         read_ebpb();
         println!("SECTORS PER CLUSTER: {}", &bpb.sectors_per_cluster);
         let first_root_dir_sector = calc_first_root_dir_sector(&bpb) as u32;
-        let sector: [u8; 512] = transmute(read_sectors(first_root_dir_sector, 0));
+        let sector: [u8; 512] = transmute(read_sectors(first_root_dir_sector, 1));
         println!("FIRST ROOT DIR SECTOR:\n{:X?}\n", sector);
 
         let mut entries: Vec<Directory, 16> = Vec::new();
@@ -215,13 +215,28 @@ pub fn init() {
             }
         }
         println!("DIR ENTRIES: {:X?}", entries);
+        let sectors_per_cluster = bpb.sectors_per_cluster as u16;
+        let root_dir_sectors = ((bpb.root_dir_entries as u32 * 32)
+            + (bpb.bytes_per_sector as u32 - 1))
+            / bpb.bytes_per_sector as u32;
+        let data_start_sector = bpb.reserved_sectors as u32
+            + (bpb.fats as u32 * bpb.sectors_per_fat as u32)
+            + root_dir_sectors as u32;
         for entry in entries {
             let entry_size = entry.size;
+            let cluster_low = entry.cluster_low;
+            let first_sector =
+                data_start_sector + (cluster_low as u32 - 2) * sectors_per_cluster as u32;
             println!(
                 "File: {}.{} Size: {} bytes",
                 str::from_utf8_unchecked(&entry.name).trim(),
                 str::from_utf8_unchecked(&entry.extension),
                 entry_size
+            );
+            let data_sector: [u8; 512] = transmute(read_sectors(first_sector as u32, 1));
+            println!(
+                "CONTENTS READ!\n{}\nEOF",
+                str::from_utf8_unchecked(&data_sector[0..entry_size as usize])
             );
         }
     });

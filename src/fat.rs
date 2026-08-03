@@ -66,7 +66,7 @@ unsafe fn wait_until_not_busy() {
     }
 }
 
-unsafe fn read_sectors(lbalo: u8, lbamid: u8, lbahi: u8, sectors: u8) -> [u16; 256] {
+unsafe fn read_sectors(lba_addr: u32, sectors: u8) -> [u16; 256] {
     unsafe {
         let io_base = 0x1F0;
         let mut data_register = Port::<u16>::new(io_base);
@@ -78,9 +78,9 @@ unsafe fn read_sectors(lbalo: u8, lbamid: u8, lbahi: u8, sectors: u8) -> [u16; 2
         let mut lba_high = Port::<u8>::new(io_base + 5);
 
         sector_count.write(sectors);
-        lba_low.write(lbalo);
-        lba_mid.write(lbamid);
-        lba_high.write(lbahi);
+        lba_low.write((lba_addr & 0xFF) as u8);
+        lba_mid.write((lba_addr >> 8 & 0xFF) as u8);
+        lba_high.write((lba_addr >> 16 & 0xFF) as u8);
 
         Port::<u8>::new(io_base + 6).write(0xE0);
 
@@ -109,7 +109,7 @@ fn calc_first_root_dir_sector(bpb: &Bpb) -> u16 {
 
 fn read_bpb() -> Bpb {
     unsafe {
-        let sector_zero = read_sectors(0, 0, 0, 1);
+        let sector_zero = read_sectors(0, 1);
         let bpb_data: &[u16] = &sector_zero[..18];
 
         println!("0 - 18 WORDS FROM SECTOR 0:\n{:?}\n", bpb_data);
@@ -127,7 +127,7 @@ fn read_bpb() -> Bpb {
 
 fn read_ebpb() -> Ebpb {
     unsafe {
-        let sector_zero = read_sectors(0, 0, 0, 1);
+        let sector_zero = read_sectors(0, 1);
         let ebpb_data: &[u16] = &sector_zero[18..31];
 
         println!("18 - 31 WORDS FROM SECTOR 0:\n{:?}\n", ebpb_data);
@@ -195,10 +195,7 @@ pub fn init() {
         read_ebpb();
         println!("SECTORS PER CLUSTER: {}", &bpb.sectors_per_cluster);
         let first_root_dir_sector = calc_first_root_dir_sector(&bpb) as u32;
-        let lbalo = (first_root_dir_sector & 0b11111111) as u8;
-        let lbamid = ((first_root_dir_sector >> 8) & 0b11111111) as u8;
-        let lbahi = ((first_root_dir_sector >> 16) & 0b11111111) as u8;
-        let sector: [u8; 512] = transmute(read_sectors(lbalo, lbamid, lbahi, 0));
+        let sector: [u8; 512] = transmute(read_sectors(first_root_dir_sector, 0));
         println!("FIRST ROOT DIR SECTOR:\n{:X?}\n", sector);
 
         let mut entries: Vec<Directory, 16> = Vec::new();

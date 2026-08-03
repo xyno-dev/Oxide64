@@ -125,6 +125,25 @@ fn read_bpb() -> Bpb {
     }
 }
 
+fn read_ebpb() -> Ebpb {
+    unsafe {
+        let sector_zero = read_sectors(0, 1);
+        let ebpb_data: &[u16] = &sector_zero[18..31];
+
+        println!("18 - 31 WORDS FROM SECTOR 0:\n{:?}\n", ebpb_data);
+
+        let ebpb: Ebpb = transmute::<[u16; 13], Ebpb>(ebpb_data.try_into().unwrap());
+        println!("EBPB STRUCT:\n{:?}\n", ebpb);
+        println!(
+            "FAT16 VOLUME LABEL: {}\n",
+            str::from_utf8_unchecked(&ebpb.volume_label)
+        );
+        println!("FAT16 SYS ID: {}\n", str::from_utf8_unchecked(&ebpb.sys_id));
+
+        ebpb
+    }
+}
+
 fn list_directories(bpb: &Bpb) -> Vec<Directory, 512> {
     let first_root_dir_sector_number = calc_first_root_dir_sector(&bpb) as u32;
     let root_dir_sectors = ((bpb.root_dir_entries as u32 * 32) + (bpb.bytes_per_sector as u32 - 1))
@@ -156,22 +175,28 @@ fn list_directories(bpb: &Bpb) -> Vec<Directory, 512> {
     entries
 }
 
-fn read_ebpb() -> Ebpb {
+fn read_file(entry: &Directory, bpb: &Bpb) -> Vec<u8, 1024> {
+    let sectors_per_cluster = bpb.sectors_per_cluster as u16;
+    let root_dir_sectors = ((bpb.root_dir_entries as u32 * 32) + (bpb.bytes_per_sector as u32 - 1))
+        / bpb.bytes_per_sector as u32;
+    let data_start_sector = bpb.reserved_sectors as u32
+        + (bpb.fats as u32 * bpb.sectors_per_fat as u32)
+        + root_dir_sectors as u32;
+
+    let entry_size = entry.size;
+    let cluster_low = entry.cluster_low;
+    let first_sector = data_start_sector + (cluster_low as u32 - 2) * sectors_per_cluster as u32;
+
     unsafe {
-        let sector_zero = read_sectors(0, 1);
-        let ebpb_data: &[u16] = &sector_zero[18..31];
-
-        println!("18 - 31 WORDS FROM SECTOR 0:\n{:?}\n", ebpb_data);
-
-        let ebpb: Ebpb = transmute::<[u16; 13], Ebpb>(ebpb_data.try_into().unwrap());
-        println!("EBPB STRUCT:\n{:?}\n", ebpb);
         println!(
-            "FAT16 VOLUME LABEL: {}\n",
-            str::from_utf8_unchecked(&ebpb.volume_label)
+            "File: {}.{} Size: {} bytes",
+            str::from_utf8_unchecked(&entry.name).trim(),
+            str::from_utf8_unchecked(&entry.extension),
+            entry_size
         );
-        println!("FAT16 SYS ID: {}\n", str::from_utf8_unchecked(&ebpb.sys_id));
+        let data_sector: [u8; 512] = transmute(read_sectors(first_sector as u32, 1));
 
-        ebpb
+        Vec::from_slice(&data_sector[0..entry_size as usize]).unwrap()
     }
 }
 
@@ -226,28 +251,11 @@ pub fn init() {
         read_ebpb();
         println!("SECTORS PER CLUSTER: {}", &bpb.sectors_per_cluster);
 
-        let sectors_per_cluster = bpb.sectors_per_cluster as u16;
-        let root_dir_sectors = ((bpb.root_dir_entries as u32 * 32)
-            + (bpb.bytes_per_sector as u32 - 1))
-            / bpb.bytes_per_sector as u32;
-        let data_start_sector = bpb.reserved_sectors as u32
-            + (bpb.fats as u32 * bpb.sectors_per_fat as u32)
-            + root_dir_sectors as u32;
         for entry in list_directories(&bpb) {
-            let entry_size = entry.size;
-            let cluster_low = entry.cluster_low;
-            let first_sector =
-                data_start_sector + (cluster_low as u32 - 2) * sectors_per_cluster as u32;
-            println!(
-                "File: {}.{} Size: {} bytes",
-                str::from_utf8_unchecked(&entry.name).trim(),
-                str::from_utf8_unchecked(&entry.extension),
-                entry_size
-            );
-            let data_sector: [u8; 512] = transmute(read_sectors(first_sector as u32, 1));
+            let contents = read_file(&entry, &bpb);
             println!(
                 "CONTENTS READ!\n{}\nEOF",
-                str::from_utf8_unchecked(&data_sector[0..entry_size as usize])
+                str::from_utf8_unchecked(&contents)
             );
         }
     });

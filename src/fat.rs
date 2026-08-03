@@ -34,6 +34,24 @@ struct Ebpb {
     sys_id: [u8; 8]
 }
 
+#[derive(Debug)]
+#[repr(C, packed)]
+struct Directory {
+    name: [u8; 8],
+    extension: [u8; 3],
+    attributes: u8,
+    reserved: u8,
+    time_taken: u8,
+    creation_time: u16,
+    creation_date: u16,
+    last_accessed: u16,
+    cluster_high: u16,
+    last_modified_time: u16,
+    last_modified_date: u16,
+    cluster_low: u16,
+    size: u32
+}
+
 unsafe fn wait_until_not_busy() {
     unsafe {
         let io_base = 0x1F0;
@@ -176,29 +194,26 @@ pub fn init() {
             let sector: [u8; 512] = transmute(read_sectors(lbalo, lbamid, lbahi, 0));
             println!("FIRST ROOT DIR SECTOR:\n{:X?}\n", sector);
 
-            let mut entries: Vec<&[u8], 1024> = Vec::new();
+            let mut entries: Vec<Directory, 16> = Vec::new();
             let mut zero_count = 0;
             for (i, byte) in sector.iter().enumerate() {
                 if *byte == 0 {
                     zero_count += 1;
                 } else {
                     if zero_count > 4 {
-                        entries.push(&sector[i..(i + 32)]).unwrap();
+                        entries.push(transmute::<[u8; 32], Directory>(sector[i..(i + 32)].try_into().unwrap())).unwrap();
                     }
                     zero_count = 0;
                 }
             }
             println!("DIR ENTRIES: {:X?}", entries);
             for entry in entries {
-                let file_size = &entry[28] >> 24
-                    | &entry[29] >> 16
-                    | &entry[30] >> 8
-                    | &entry[31];
+                let entry_size = entry.size;
                 println!(
                     "File: {}.{} Size: {} bytes",
-                    str::from_utf8_unchecked(&entry[0..8]).trim(),
-                    str::from_utf8_unchecked(&entry[8..11]),
-                    file_size
+                    str::from_utf8_unchecked(&entry.name).trim(),
+                    str::from_utf8_unchecked(&entry.extension),
+                    entry_size
                 );
             }
         }

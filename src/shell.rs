@@ -1,3 +1,5 @@
+use core::str::SplitWhitespace;
+
 use heapless::{String, Vec};
 
 use crate::{fat, interrupts, print, println};
@@ -39,6 +41,13 @@ fn cat(filename: &str) {
     }
 }
 
+fn echo(mut s: SplitWhitespace) {
+    while let Some(s) = s.next() {
+        print!("{s} ");
+    }
+    print!("\x08\n");
+}
+
 pub fn shell_loop() -> ! {
     loop {
         x86_64::instructions::interrupts::without_interrupts(|| {
@@ -56,6 +65,7 @@ pub fn shell_loop() -> ! {
                         println!("cat: expected 2 arguments");
                         ""
                     })),
+                    "echo" => echo(argc),
                     command if command.is_empty() => {}
                     command => println!("{command}: command not found"),
                 }

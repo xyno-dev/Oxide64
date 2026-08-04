@@ -130,7 +130,10 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
                 print!("{char}");
                 let mut buffer = KEYBOARD_BUF.lock();
                 buffer.truncate(255);
-                buffer.push(char).unwrap();
+                match char {
+                    '\x08' => { buffer.pop(); },
+                    char => { buffer.push(char).unwrap(); }
+                }
             }
         }
     }

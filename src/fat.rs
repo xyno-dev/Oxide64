@@ -2,7 +2,7 @@ use core::mem::transmute;
 use heapless::Vec;
 use x86_64::instructions::{self, port::Port};
 
-use crate::println;
+use crate::{print, println};
 
 #[derive(Debug)]
 #[repr(C, packed)]
@@ -52,6 +52,26 @@ pub struct Directory {
     pub size: u32,
 }
 
+impl Directory {
+    pub fn new(name: &str, extension: &str, size: u32) -> Self {
+        Self {
+            name: name.as_bytes().try_into().unwrap(),
+            extension: extension.as_bytes().try_into().unwrap(),
+            attributes: 0,
+            reserved: 0,
+            time_taken: 0,
+            creation_time: 1,
+            creation_date: 1,
+            last_accessed: 1,
+            cluster_high: 0,
+            last_modified_time: 1,
+            last_modified_date: 1,
+            cluster_low: 0,
+            size
+        }
+    }
+}
+
 unsafe fn wait_until_not_busy() {
     unsafe {
         let io_base = 0x1F0;
@@ -97,6 +117,37 @@ unsafe fn read_sectors(lba_addr: u32, sectors: u8) -> [u8; 512] {
     }
 }
 
+unsafe fn write_sector(lba_addr: u32, sector: [u8; 512]) {
+    unsafe {
+        let io_base = 0x1F0;
+        let mut data_register = Port::<u16>::new(io_base);
+        let mut command_register = Port::<u8>::new(io_base + 7);
+        let mut sector_count = Port::<u8>::new(io_base + 2);
+
+        let mut lba_low = Port::<u8>::new(io_base + 3);
+        let mut lba_mid = Port::<u8>::new(io_base + 4);
+        let mut lba_high = Port::<u8>::new(io_base + 5);
+
+        sector_count.write(1);
+        lba_low.write((lba_addr & 0xFF) as u8);
+        lba_mid.write((lba_addr >> 8 & 0xFF) as u8);
+        lba_high.write((lba_addr >> 16 & 0xFF) as u8);
+
+        Port::<u8>::new(io_base + 6).write(0xE0);
+
+        command_register.write(0x30);
+
+        wait_until_not_busy();
+
+        let data: [u16; 256] = transmute(sector);
+
+        for i in 0..256 {
+            data_register.write(data[i])
+        }
+    }
+}
+
+
 fn calc_first_root_dir_sector(bpb: &Bpb) -> u16 {
     let root_dir_sectors =
         (bpb.root_dir_entries * 32) + (bpb.bytes_per_sector - 1) / bpb.bytes_per_sector;
@@ -139,6 +190,7 @@ pub fn list_directories(bpb: &Bpb) -> Vec<Directory, 512> {
     unsafe {
         for i in 0..root_dir_sectors {
             let sector = read_sectors(first_root_dir_sector_number + i, 1);
+            // println!("{sector:X?}");
             for (i, byte) in sector.iter().enumerate() {
                 if *byte == 0 {
                     zero_count += 1;
@@ -171,10 +223,52 @@ pub fn read_file(entry: &Directory, bpb: &Bpb) -> Vec<u8, 1024> {
     let cluster_low = entry.cluster_low;
     let first_sector = data_start_sector + (cluster_low as u32 - 2) * sectors_per_cluster as u32;
 
-    unsafe {
-        let data_sector = read_sectors(first_sector as u32, 1);
+    let first_fat_sector = bpb.reserved_sectors;
+    let fat_offset = cluster_low * 2;
+    let fat_sector = first_fat_sector + (fat_offset / 512);
+    let ent_offset = (fat_offset % 512) as usize;
 
+    unsafe {
+        let fat_table = read_sectors(fat_sector as u32, 1);
+        let table_value: u16 = u16::from_le_bytes([
+            fat_table[ent_offset],
+            fat_table[ent_offset + 1],
+        ]);
+        println!("{table_value:X}");
+
+        let data_sector = read_sectors(first_sector as u32, 1);
         Vec::from_slice(&data_sector[0..entry_size as usize]).unwrap()
+    }
+}
+
+pub fn write_file(entry: Directory, bpb: &Bpb) {
+    let first_root_dir_sector_number = calc_first_root_dir_sector(&bpb) as u32;
+    let root_dir_sectors = ((bpb.root_dir_entries as u32 * 32) + (bpb.bytes_per_sector as u32 - 1))
+        / bpb.bytes_per_sector as u32;
+       
+    unsafe {
+        let entry_bytes: [u8; 32] = transmute(entry);
+        
+        for i in 0..root_dir_sectors {
+            let mut sector = read_sectors(first_root_dir_sector_number + i, 1);
+            let mut zero_count = 0;
+
+            for (i, byte) in sector.clone().iter().enumerate() {
+                if *byte == 0 {
+                    zero_count += 1
+                } else {
+                    zero_count = 0
+                }
+                if zero_count > 5 {
+                    sector[i..(i + 32)].copy_from_slice(&entry_bytes);
+                    break;
+                }
+            }
+            if zero_count >= 5 {
+                write_sector(first_root_dir_sector_number + i, sector);
+                break;
+            }
+        }
     }
 }
 
@@ -236,5 +330,9 @@ pub fn init() {
                 str::from_utf8_unchecked(&contents)
             );
         }
+
+        let new_file_entry = Directory::new("newfile ", "txt", 32);
+
+        write_file(new_file_entry, &bpb);
     });
 }

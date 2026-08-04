@@ -12,7 +12,30 @@ fn ls() {
         let extension = str::from_utf8(&directory.extension).unwrap_or("---").trim();
         let size = directory.size;
 
-        println!("{name}.{extension} {size:>pad$} bytes", pad = 12 - (name.len() + extension.len()));
+        println!(
+            "{name}.{extension} {size:>pad$} bytes",
+            pad = 12 - (name.len() + extension.len())
+        );
+    }
+}
+
+fn cat(filename: &str) {
+    let bpb = fat::read_bpb();
+    let directories = fat::list_directories(&bpb);
+    let mut file_entry = None;
+
+    for directory in directories {
+        let name = str::from_utf8(&directory.name).unwrap_or("").trim();
+        if name == filename {
+            file_entry = Some(directory)
+        }
+    }
+
+    if let Some(entry) = file_entry {
+        let contents = fat::read_file(&entry, &bpb);
+        println!("{}", str::from_utf8(&contents).unwrap_or(""));
+    } else {
+        println!("cat: {filename}: file not found")
     }
 }
 
@@ -26,10 +49,15 @@ pub fn shell_loop() -> ! {
                 for c in (*buffer).iter() {
                     command.push(*c).unwrap();
                 }
-                match command.as_str() {
+                let mut argc = command.split_whitespace();
+                match argc.next().unwrap_or("") {
                     "ls" => ls(),
-                    command if command.trim().is_empty() => {},
-                    command => println!("{command}: command not found")
+                    "cat" => cat(argc.next().unwrap_or_else(|| {
+                        println!("cat: expected 2 arguments");
+                        ""
+                    })),
+                    command if command.is_empty() => {}
+                    command => println!("{command}: command not found"),
                 }
                 print!("$ ");
                 *buffer = Vec::new();

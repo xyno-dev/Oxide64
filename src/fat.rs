@@ -65,7 +65,7 @@ unsafe fn wait_until_not_busy() {
     }
 }
 
-unsafe fn read_sectors(lba_addr: u32, sectors: u8) -> [u16; 256] {
+unsafe fn read_sectors(lba_addr: u32, sectors: u8) -> [u8; 512] {
     unsafe {
         let io_base = 0x1F0;
         let mut data_register = Port::<u16>::new(io_base);
@@ -93,7 +93,7 @@ unsafe fn read_sectors(lba_addr: u32, sectors: u8) -> [u16; 256] {
             data[i] = data_register.read()
         }
 
-        data
+        transmute(data)
     }
 }
 
@@ -109,9 +109,9 @@ fn calc_first_root_dir_sector(bpb: &Bpb) -> u16 {
 pub fn read_bpb() -> Bpb {
     unsafe {
         let sector_zero = read_sectors(0, 1);
-        let bpb_data: &[u16] = &sector_zero[..18];
+        let bpb_data: &[u8] = &sector_zero[..36];
 
-        let bpb: Bpb = transmute::<[u16; 18], Bpb>(bpb_data.try_into().unwrap());
+        let bpb: Bpb = transmute::<[u8 ;36], Bpb>(bpb_data.try_into().unwrap());
 
         bpb
     }
@@ -120,9 +120,9 @@ pub fn read_bpb() -> Bpb {
 pub fn read_ebpb() -> Ebpb {
     unsafe {
         let sector_zero = read_sectors(0, 1);
-        let ebpb_data: &[u16] = &sector_zero[18..31];
+        let ebpb_data: &[u8] = &sector_zero[36..62];
 
-        let ebpb: Ebpb = transmute::<[u16; 13], Ebpb>(ebpb_data.try_into().unwrap());
+        let ebpb: Ebpb = transmute::<[u8; 26], Ebpb>(ebpb_data.try_into().unwrap());
 
         ebpb
     }
@@ -138,7 +138,7 @@ pub fn list_directories(bpb: &Bpb) -> Vec<Directory, 512> {
 
     unsafe {
         for i in 0..root_dir_sectors {
-            let sector: [u8; 512] = transmute(read_sectors(first_root_dir_sector_number + i, 1));
+            let sector = read_sectors(first_root_dir_sector_number + i, 1);
             for (i, byte) in sector.iter().enumerate() {
                 if *byte == 0 {
                     zero_count += 1;
@@ -172,7 +172,7 @@ pub fn read_file(entry: &Directory, bpb: &Bpb) -> Vec<u8, 1024> {
     let first_sector = data_start_sector + (cluster_low as u32 - 2) * sectors_per_cluster as u32;
 
     unsafe {
-        let data_sector: [u8; 512] = transmute(read_sectors(first_sector as u32, 1));
+        let data_sector = read_sectors(first_sector as u32, 1);
 
         Vec::from_slice(&data_sector[0..entry_size as usize]).unwrap()
     }

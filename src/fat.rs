@@ -2,7 +2,7 @@ use core::mem::transmute;
 use heapless::Vec;
 use x86_64::instructions::{self, port::Port};
 
-use crate::{print, println};
+use crate::println;
 
 #[derive(Debug)]
 #[repr(C, packed)]
@@ -67,12 +67,12 @@ impl Directory {
             last_modified_time: 1,
             last_modified_date: 1,
             cluster_low: 0,
-            size
+            size,
         }
     }
 }
 
-unsafe fn wait_until_not_busy() {
+unsafe fn wait_until_data_ready() {
     unsafe {
         let io_base = 0x1F0;
         let mut command_register = Port::<u8>::new(io_base + 7);
@@ -81,6 +81,20 @@ unsafe fn wait_until_not_busy() {
 
         while ((response >> 7) & 0b01) == 1 || ((response >> 3) & 1) != 1 {
             response = command_register.read();
+        }
+    }
+}
+
+unsafe fn wait_until_bsy_clear() {
+    unsafe {
+        let io_base = 0x1F0;
+        let mut command_register = Port::<u8>::new(io_base + 7);
+
+        let mut response = command_register.read();
+
+        while ((response >> 7) & 0b01) == 1 {
+            response = command_register.read();
+            println!("{response}");
         }
     }
 }
@@ -105,13 +119,15 @@ unsafe fn read_sectors(lba_addr: u32, sectors: u8) -> [u8; 512] {
 
         command_register.write(0x20);
 
-        wait_until_not_busy();
+        wait_until_data_ready();
 
         let mut data = [0 as u16; 256];
 
         for i in 0..256 {
             data[i] = data_register.read()
         }
+
+        wait_until_bsy_clear();
 
         transmute(data)
     }
@@ -137,16 +153,17 @@ unsafe fn write_sector(lba_addr: u32, sector: [u8; 512]) {
 
         command_register.write(0x30);
 
-        wait_until_not_busy();
+        wait_until_data_ready();
 
         let data: [u16; 256] = transmute(sector);
 
         for i in 0..256 {
             data_register.write(data[i])
         }
+
+        wait_until_bsy_clear();
     }
 }
-
 
 fn calc_first_root_dir_sector(bpb: &Bpb) -> u16 {
     let root_dir_sectors =
@@ -162,7 +179,7 @@ pub fn read_bpb() -> Bpb {
         let sector_zero = read_sectors(0, 1);
         let bpb_data: &[u8] = &sector_zero[..36];
 
-        let bpb: Bpb = transmute::<[u8 ;36], Bpb>(bpb_data.try_into().unwrap());
+        let bpb: Bpb = transmute::<[u8; 36], Bpb>(bpb_data.try_into().unwrap());
 
         bpb
     }
@@ -190,7 +207,6 @@ pub fn list_directories(bpb: &Bpb) -> Vec<Directory, 512> {
     unsafe {
         for i in 0..root_dir_sectors {
             let sector = read_sectors(first_root_dir_sector_number + i, 1);
-            // println!("{sector:X?}");
             for (i, byte) in sector.iter().enumerate() {
                 if *byte == 0 {
                     zero_count += 1;
@@ -230,10 +246,8 @@ pub fn read_file(entry: &Directory, bpb: &Bpb) -> Vec<u8, 1024> {
 
     unsafe {
         let fat_table = read_sectors(fat_sector as u32, 1);
-        let table_value: u16 = u16::from_le_bytes([
-            fat_table[ent_offset],
-            fat_table[ent_offset + 1],
-        ]);
+        let table_value: u16 =
+            u16::from_le_bytes([fat_table[ent_offset], fat_table[ent_offset + 1]]);
         println!("{table_value:X}");
 
         let data_sector = read_sectors(first_sector as u32, 1);
@@ -241,32 +255,62 @@ pub fn read_file(entry: &Directory, bpb: &Bpb) -> Vec<u8, 1024> {
     }
 }
 
-pub fn write_file(entry: Directory, bpb: &Bpb) {
+pub fn create_file(mut entry: Directory, bpb: &Bpb) {
     let first_root_dir_sector_number = calc_first_root_dir_sector(&bpb) as u32;
     let root_dir_sectors = ((bpb.root_dir_entries as u32 * 32) + (bpb.bytes_per_sector as u32 - 1))
         / bpb.bytes_per_sector as u32;
-       
-    unsafe {
-        let entry_bytes: [u8; 32] = transmute(entry);
-        
-        for i in 0..root_dir_sectors {
-            let mut sector = read_sectors(first_root_dir_sector_number + i, 1);
-            let mut zero_count = 0;
 
-            for (i, byte) in sector.clone().iter().enumerate() {
+    unsafe {
+        let first_fat_sector = bpb.reserved_sectors;
+        let sectors_per_fat = bpb.sectors_per_fat as usize;
+
+        let mut empty_cluster = None;
+        let mut fat_offset = None;
+
+        'sector_loop: for offset in 0..sectors_per_fat {
+            let sector: [u16; 256] =
+                transmute(read_sectors(first_fat_sector as u32 + offset as u32, 1));
+            for (i, byte) in sector[2..].iter().enumerate() {
                 if *byte == 0 {
-                    zero_count += 1
-                } else {
-                    zero_count = 0
-                }
-                if zero_count > 5 {
-                    sector[i..(i + 32)].copy_from_slice(&entry_bytes);
-                    break;
+                    empty_cluster = Some(i + 2);
+                    fat_offset = Some(offset as u32);
+                    break 'sector_loop;
                 }
             }
-            if zero_count >= 5 {
-                write_sector(first_root_dir_sector_number + i, sector);
-                break;
+        }
+
+        if let Some(cluster_status_word) = empty_cluster {
+            let mut sector: [u16; 256] = transmute(read_sectors(
+                first_fat_sector as u32 + fat_offset.unwrap(),
+                1,
+            ));
+            sector[cluster_status_word] = 0xFFFF;
+            write_sector(
+                first_fat_sector as u32 + fat_offset.unwrap(),
+                transmute(sector),
+            );
+            write_sector(
+                first_fat_sector as u32 + sectors_per_fat as u32 + fat_offset.unwrap(),
+                transmute(sector),
+            );
+            entry.cluster_low = cluster_status_word as u16 + (512 * fat_offset.unwrap()) as u16;
+        }
+
+        println!("{entry:?}");
+
+        let entry_bytes: [u8; 32] = transmute(entry);
+
+        'sector_loop: for i in 0..root_dir_sectors {
+            let sector_address = first_root_dir_sector_number + i;
+            let mut sector = read_sectors(sector_address, 1);
+
+            for i in (0..512).step_by(32) {
+                if sector[i] == 0 {
+                    sector[i..(i + 32)].copy_from_slice(&entry_bytes);
+                    write_sector(sector_address, sector);
+                    println!("Found free slot: {i}");
+                    break 'sector_loop;
+                }
             }
         }
     }
@@ -313,7 +357,7 @@ pub fn init() {
             )
         }
 
-        wait_until_not_busy();
+        wait_until_data_ready();
 
         for _ in 0..256 {
             data_register.read();
@@ -333,6 +377,6 @@ pub fn init() {
 
         let new_file_entry = Directory::new("newfile ", "txt", 32);
 
-        write_file(new_file_entry, &bpb);
+        create_file(new_file_entry, &bpb);
     });
 }

@@ -1,7 +1,7 @@
 <h1 align="center">
   <a href="https://github.com/xyno-dev/Oxide64">
     <img
-      src="https://github.com/xyno-dev/Oxide64/blob/3979a054305dfc130a523d245fe0836031ef61a5/src/assets/logo-transparent.svg"
+      src="https://github.com/xyno-dev/Oxide64/blob/3979a054305dfc130a523d245fe0836031ef61a5/src/assets/logo-transparent.png"
       alt="Logo" width="512" height="512">
   </a>
   <br />

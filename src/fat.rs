@@ -260,40 +260,52 @@ pub fn create_file(mut entry: Directory, bpb: &Bpb) {
     let root_dir_sectors = ((bpb.root_dir_entries as u32 * 32) + (bpb.bytes_per_sector as u32 - 1))
         / bpb.bytes_per_sector as u32;
 
+    let mut clusters_needed = entry
+        .size
+        .div_ceil(bpb.bytes_per_sector as u32 * bpb.sectors_per_cluster as u32);
+
     unsafe {
         let first_fat_sector = bpb.reserved_sectors;
         let sectors_per_fat = bpb.sectors_per_fat as usize;
 
-        let mut empty_cluster = None;
-        let mut fat_offset = None;
+        let mut empty_clusters: Vec<u16, 512> = Vec::new();
+        let mut sector_addresses: Vec<u32, 512> = Vec::new();
 
         'sector_loop: for offset in 0..sectors_per_fat {
             let sector: [u16; 256] =
                 transmute(read_sectors(first_fat_sector as u32 + offset as u32, 1));
-            for (i, byte) in sector[2..].iter().enumerate() {
-                if *byte == 0 {
-                    empty_cluster = Some(i + 2);
-                    fat_offset = Some(offset as u32);
+            for (i, word) in sector[2..].iter().enumerate() {
+                if clusters_needed <= 0 {
                     break 'sector_loop;
+                }
+                if *word == 0 {
+                    empty_clusters
+                        .push(i as u16 + 2)
+                        .unwrap();
+                    sector_addresses.push(first_fat_sector as u32 + offset as u32).unwrap();
+                    clusters_needed -= 1;
                 }
             }
         }
 
-        if let Some(cluster_status_word) = empty_cluster {
-            let mut sector: [u16; 256] = transmute(read_sectors(
-                first_fat_sector as u32 + fat_offset.unwrap(),
-                1,
-            ));
-            sector[cluster_status_word] = 0xFFFF;
+        for (i, cluster_address) in empty_clusters.clone().iter().enumerate() {
+            let sector_address = sector_addresses[i];
+            let mut sector: [u16; 256] = transmute(read_sectors(sector_address, 1));
+
+            if i == 0 {
+                entry.cluster_low = *cluster_address;
+            } else if i == empty_clusters.len() - 1 {
+                sector[*cluster_address as usize] = 0xFFFF;
+                sector[empty_clusters[i - 1] as usize] = *cluster_address;
+            } else {
+                sector[empty_clusters[i - 1] as usize] = *cluster_address;
+            }
+
+            write_sector(sector_address, transmute(sector));
             write_sector(
-                first_fat_sector as u32 + fat_offset.unwrap(),
+                sector_address + sectors_per_fat as u32,
                 transmute(sector),
             );
-            write_sector(
-                first_fat_sector as u32 + sectors_per_fat as u32 + fat_offset.unwrap(),
-                transmute(sector),
-            );
-            entry.cluster_low = cluster_status_word as u16 + (512 * fat_offset.unwrap()) as u16;
         }
 
         println!("{entry:?}");
@@ -375,7 +387,7 @@ pub fn init() {
             );
         }
 
-        let new_file_entry = Directory::new("newfile ", "txt", 32);
+        let new_file_entry = Directory::new("tungtung", "txt", 8192);
 
         create_file(new_file_entry, &bpb);
     });

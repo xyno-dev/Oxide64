@@ -99,7 +99,7 @@ unsafe fn wait_until_bsy_clear() {
     }
 }
 
-unsafe fn read_sectors(lba_addr: u32, sectors: u8) -> [u8; 512] {
+unsafe fn read_sector(lba_addr: u32) -> [u8; 512] {
     unsafe {
         let io_base = 0x1F0;
         let mut data_register = Port::<u16>::new(io_base);
@@ -110,7 +110,7 @@ unsafe fn read_sectors(lba_addr: u32, sectors: u8) -> [u8; 512] {
         let mut lba_mid = Port::<u8>::new(io_base + 4);
         let mut lba_high = Port::<u8>::new(io_base + 5);
 
-        sector_count.write(sectors);
+        sector_count.write(1);
         lba_low.write((lba_addr & 0xFF) as u8);
         lba_mid.write((lba_addr >> 8 & 0xFF) as u8);
         lba_high.write((lba_addr >> 16 & 0xFF) as u8);
@@ -176,7 +176,7 @@ fn calc_first_root_dir_sector(bpb: &Bpb) -> u16 {
 
 pub fn read_bpb() -> Bpb {
     unsafe {
-        let sector_zero = read_sectors(0, 1);
+        let sector_zero = read_sector(0);
         let bpb_data: &[u8] = &sector_zero[..36];
 
         let bpb: Bpb = transmute::<[u8; 36], Bpb>(bpb_data.try_into().unwrap());
@@ -187,7 +187,7 @@ pub fn read_bpb() -> Bpb {
 
 pub fn read_ebpb() -> Ebpb {
     unsafe {
-        let sector_zero = read_sectors(0, 1);
+        let sector_zero = read_sector(0);
         let ebpb_data: &[u8] = &sector_zero[36..62];
 
         let ebpb: Ebpb = transmute::<[u8; 26], Ebpb>(ebpb_data.try_into().unwrap());
@@ -206,7 +206,7 @@ pub fn list_directories(bpb: &Bpb) -> Vec<Directory, 512> {
 
     unsafe {
         for i in 0..root_dir_sectors {
-            let sector = read_sectors(first_root_dir_sector_number + i, 1);
+            let sector = read_sector(first_root_dir_sector_number + i);
             for (i, byte) in sector.iter().enumerate() {
                 if *byte == 0 {
                     zero_count += 1;
@@ -245,12 +245,12 @@ pub fn read_file(entry: &Directory, bpb: &Bpb) -> Vec<u8, 1024> {
     let ent_offset = (fat_offset % 512) as usize;
 
     unsafe {
-        let fat_table = read_sectors(fat_sector as u32, 1);
+        let fat_table = read_sector(fat_sector as u32);
         let table_value: u16 =
             u16::from_le_bytes([fat_table[ent_offset], fat_table[ent_offset + 1]]);
         println!("{table_value:X}");
 
-        let data_sector = read_sectors(first_sector as u32, 1);
+        let data_sector = read_sector(first_sector as u32);
         Vec::from_slice(&data_sector[0..entry_size as usize]).unwrap()
     }
 }
@@ -273,7 +273,7 @@ pub fn create_file(mut entry: Directory, bpb: &Bpb) {
 
         'sector_loop: for offset in 0..sectors_per_fat {
             let sector: [u16; 256] =
-                transmute(read_sectors(first_fat_sector as u32 + offset as u32, 1));
+                transmute(read_sector(first_fat_sector as u32 + offset as u32));
             for (i, word) in sector[2..].iter().enumerate() {
                 if clusters_needed <= 0 {
                     break 'sector_loop;
@@ -290,7 +290,7 @@ pub fn create_file(mut entry: Directory, bpb: &Bpb) {
 
         for (i, cluster_address) in empty_clusters.clone().iter().enumerate() {
             let sector_address = sector_addresses[i];
-            let mut sector: [u16; 256] = transmute(read_sectors(sector_address, 1));
+            let mut sector: [u16; 256] = transmute(read_sector(sector_address));
 
             if i == 0 {
                 entry.cluster_low = *cluster_address;
@@ -314,7 +314,7 @@ pub fn create_file(mut entry: Directory, bpb: &Bpb) {
 
         'sector_loop: for i in 0..root_dir_sectors {
             let sector_address = first_root_dir_sector_number + i;
-            let mut sector = read_sectors(sector_address, 1);
+            let mut sector = read_sector(sector_address);
 
             for i in (0..512).step_by(32) {
                 if sector[i] == 0 {

@@ -1,5 +1,5 @@
 use core::mem::transmute;
-use heapless::Vec;
+use heapless::{String, Vec};
 use lazy_static::lazy_static;
 use x86_64::instructions::{self, port::Port};
 
@@ -110,16 +110,12 @@ impl FileStream {
         }
 
         let root_dir_sectors =
-            ((BPB.root_dir_entries * 32) +
-            (BPB.bytes_per_sector - 1)) /
-            BPB.bytes_per_sector;
+            ((BPB.root_dir_entries * 32) + (BPB.bytes_per_sector - 1)) / BPB.bytes_per_sector;
         let data_start_sector = BPB.reserved_sectors as u32
             + (BPB.fats as u32 * BPB.sectors_per_fat as u32)
             + root_dir_sectors as u32;
         let first_sector =
-            data_start_sector +
-            (self.cluster as u32 - 2) *
-            BPB.sectors_per_cluster as u32;
+            data_start_sector + (self.cluster as u32 - 2) * BPB.sectors_per_cluster as u32;
         let sector_offset = self.cluster_pointer as u32 / 512;
         let sector_address = first_sector + sector_offset;
         let sector = unsafe { read_sector(sector_address) };
@@ -130,6 +126,54 @@ impl FileStream {
         self.byte_pointer += 1;
 
         data
+    }
+
+    pub fn read_line(&mut self) -> Option<String<256>> {
+        let cluster_size = BPB.sectors_per_cluster as u16 * 512;
+
+        let root_dir_sectors =
+            ((BPB.root_dir_entries * 32) + (BPB.bytes_per_sector - 1)) / BPB.bytes_per_sector;
+        let data_start_sector = BPB.reserved_sectors as u32
+            + (BPB.fats as u32 * BPB.sectors_per_fat as u32)
+            + root_dir_sectors as u32;
+
+        let mut first_sector =
+            data_start_sector + (self.cluster as u32 - 2) * BPB.sectors_per_cluster as u32;
+        let mut sector_offset = self.cluster_pointer as u32 / 512;
+        let mut sector_address = first_sector + sector_offset;
+        let mut sector = unsafe { read_sector(sector_address) };
+
+        let mut line: String<256> = String::new();
+
+        while sector[(self.cluster_pointer % 512) as usize] != b'\n' {
+            if self.cluster_pointer >= cluster_size {
+                self.cluster_pointer = 0;
+                if let None = self.next_cluster() {
+                    return None;
+                }
+                first_sector =
+                    data_start_sector + (self.cluster as u32 - 2) * BPB.sectors_per_cluster as u32;
+                sector_offset = self.cluster_pointer as u32 / 512;
+                sector_address = first_sector + sector_offset;
+                sector = unsafe { read_sector(sector_address) };
+            }
+
+            if self.byte_pointer > self.directory.size {
+                return None;
+            }
+
+            if let Err(_) = line.push(sector[(self.cluster_pointer % 512) as usize] as char) {
+                return None;
+            }
+
+            self.cluster_pointer += 1;
+            self.byte_pointer += 1;
+        }
+
+        self.cluster_pointer += 1;
+        self.byte_pointer += 1;
+
+        Some(line)
     }
 
     fn next_cluster(&mut self) -> Option<u16> {
@@ -486,8 +530,8 @@ pub fn init() {
             size: 255,
         });
 
-        while let Some(byte) = filestream.read_byte() {
-            print!("{}", str::from_utf8(&[byte]).unwrap_or(""));
+        while let Some(line) = filestream.read_line() {
+            println!("{}", line);
         }
 
         let new_file_entry = Directory::new("tungtung", "txt", 8192);

@@ -253,7 +253,7 @@ unsafe fn write_sector(lba_addr: u32, sector: [u8; 512]) {
 
 fn calc_first_root_dir_sector(bpb: &Bpb) -> u16 {
     let root_dir_sectors =
-        (bpb.root_dir_entries * 32) + (bpb.bytes_per_sector - 1) / bpb.bytes_per_sector;
+        ((bpb.root_dir_entries * 32) + (bpb.bytes_per_sector - 1)) / bpb.bytes_per_sector;
     let first_data_sector =
         bpb.reserved_sectors + (bpb.fats as u16 * bpb.sectors_per_fat) + root_dir_sectors;
 

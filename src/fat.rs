@@ -1,8 +1,13 @@
 use core::mem::transmute;
 use heapless::Vec;
+use lazy_static::lazy_static;
 use x86_64::instructions::{self, port::Port};
 
 use crate::println;
+
+lazy_static! {
+    static ref BPB: Bpb = read_bpb();
+}
 
 #[derive(Debug)]
 #[repr(C, packed)]
@@ -68,6 +73,45 @@ impl Directory {
             last_modified_date: 1,
             cluster_low: 0,
             size,
+        }
+    }
+}
+
+pub struct FileStream {
+    directory: Directory,
+    cluster: u16,
+    pointer: u16,
+}
+
+impl FileStream {
+    pub fn new(directory: Directory) -> Self {
+        let first_cluster = directory.cluster_low;
+        Self {
+            directory,
+            cluster: first_cluster,
+            pointer: 0,
+        }
+    }
+
+    fn next_cluster(&mut self) -> Option<u16> {
+        let first_fat_sector = BPB.reserved_sectors;
+        let fat_offset = self.cluster / 512;
+        let sector_address = (first_fat_sector + fat_offset) as u32;
+        let byte_offset = self.cluster - fat_offset;
+
+        if fat_offset > BPB.sectors_per_fat {
+            None
+        } else {
+            unsafe {
+                let sector = read_sector(sector_address);
+
+                self.cluster = u16::from_le_bytes([
+                    sector[byte_offset as usize],
+                    sector[byte_offset as usize + 1],
+                ]);
+
+                Some(self.cluster)
+            }
         }
     }
 }
@@ -279,10 +323,10 @@ pub fn create_file(mut entry: Directory, bpb: &Bpb) {
                     break 'sector_loop;
                 }
                 if *word == 0 {
-                    empty_clusters
-                        .push(i as u16 + 2)
+                    empty_clusters.push(i as u16 + 2).unwrap();
+                    sector_addresses
+                        .push(first_fat_sector as u32 + offset as u32)
                         .unwrap();
-                    sector_addresses.push(first_fat_sector as u32 + offset as u32).unwrap();
                     clusters_needed -= 1;
                 }
             }
@@ -302,10 +346,7 @@ pub fn create_file(mut entry: Directory, bpb: &Bpb) {
             }
 
             write_sector(sector_address, transmute(sector));
-            write_sector(
-                sector_address + sectors_per_fat as u32,
-                transmute(sector),
-            );
+            write_sector(sector_address + sectors_per_fat as u32, transmute(sector));
         }
 
         println!("{entry:?}");

@@ -134,24 +134,27 @@ impl FileStream {
 
     fn next_cluster(&mut self) -> Option<u16> {
         let first_fat_sector = BPB.reserved_sectors;
-        let fat_offset = self.cluster / 512;
-        let sector_address = (first_fat_sector + fat_offset) as u32;
-        let byte_offset = self.cluster - fat_offset;
+        let fat_offset = self.cluster as u32 * 2;
+        let fat_sector = fat_offset / 512;
+        let sector_address = first_fat_sector as u32 + fat_sector;
+        let byte_offset = (fat_offset % 512) as usize;
 
-        if fat_offset > BPB.sectors_per_fat {
-            None
-        } else {
-            unsafe {
-                let sector = read_sector(sector_address);
-
-                self.cluster = u16::from_le_bytes([
-                    sector[byte_offset as usize],
-                    sector[byte_offset as usize + 1],
-                ]);
-
-                Some(self.cluster)
-            }
+        if fat_sector > BPB.sectors_per_fat as u32 {
+            return None;
         }
+
+        let sector = unsafe { read_sector(sector_address) };
+
+        self.cluster = u16::from_le_bytes([
+            sector[byte_offset as usize],
+            sector[byte_offset as usize + 1],
+        ]);
+
+        if self.cluster >= 0xFFF8 {
+            return None;
+        }
+
+        Some(self.cluster)
     }
 }
 

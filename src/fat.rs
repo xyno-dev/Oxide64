@@ -3,7 +3,7 @@ use heapless::Vec;
 use lazy_static::lazy_static;
 use x86_64::instructions::{self, port::Port};
 
-use crate::println;
+use crate::{print, println};
 
 lazy_static! {
     static ref BPB: Bpb = read_bpb();
@@ -80,7 +80,8 @@ impl Directory {
 pub struct FileStream {
     directory: Directory,
     cluster: u16,
-    pointer: u16,
+    cluster_pointer: u16,
+    byte_pointer: u32,
 }
 
 impl FileStream {
@@ -89,8 +90,46 @@ impl FileStream {
         Self {
             directory,
             cluster: first_cluster,
-            pointer: 0,
+            cluster_pointer: 0,
+            byte_pointer: 0,
         }
+    }
+
+    pub fn read_byte(&mut self) -> Option<u8> {
+        let cluster_size = BPB.sectors_per_cluster as u16 * 512;
+
+        if self.cluster_pointer >= cluster_size {
+            self.cluster_pointer = 0;
+            if let None = self.next_cluster() {
+                return None;
+            }
+        }
+
+        if self.byte_pointer > self.directory.size {
+            return None;
+        }
+
+        let root_dir_sectors =
+            ((BPB.root_dir_entries * 32) +
+            (BPB.bytes_per_sector - 1)) /
+            BPB.bytes_per_sector;
+        let data_start_sector = BPB.reserved_sectors as u32
+            + (BPB.fats as u32 * BPB.sectors_per_fat as u32)
+            + root_dir_sectors as u32;
+        let first_sector =
+            data_start_sector +
+            (self.cluster as u32 - 2) *
+            BPB.sectors_per_cluster as u32;
+        let sector_offset = self.cluster_pointer as u32 / 512;
+        let sector_address = first_sector + sector_offset;
+        let sector = unsafe { read_sector(sector_address) };
+
+        let data = Some(sector[(self.cluster_pointer % 512) as usize]);
+
+        self.cluster_pointer += 1;
+        self.byte_pointer += 1;
+
+        data
     }
 
     fn next_cluster(&mut self) -> Option<u16> {
@@ -426,6 +465,26 @@ pub fn init() {
                 "CONTENTS READ!\n{}\nEOF",
                 str::from_utf8_unchecked(&contents)
             );
+        }
+
+        let mut filestream = FileStream::new(Directory {
+            name: "LM      ".as_bytes().try_into().unwrap(),
+            extension: "ASM".as_bytes().try_into().unwrap(),
+            attributes: 0x20,
+            reserved: 0x18,
+            time_taken: 0,
+            creation_time: 0x8B60,
+            creation_date: 0x5D07,
+            last_accessed: 0x5D07,
+            cluster_high: 0x0000,
+            last_modified_time: 0x8B60,
+            last_modified_date: 0x5D07,
+            cluster_low: 0x000C,
+            size: 255,
+        });
+
+        while let Some(byte) = filestream.read_byte() {
+            print!("{}", str::from_utf8(&[byte]).unwrap_or(""));
         }
 
         let new_file_entry = Directory::new("tungtung", "txt", 8192);

@@ -171,6 +171,11 @@ macro_rules! printerr {
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
+
+    let mut message: String<1024> = String::new();
+    write!(message, "{args}").unwrap();
+    serial::debug_str(message.as_str());
+
     interrupts::without_interrupts(|| {
         if let Some(writer) = WRITER.lock().as_mut() {
             writer.write_fmt(args).unwrap();

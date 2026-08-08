@@ -162,6 +162,12 @@ impl FileStream {
                 return None;
             }
 
+            if self.cluster_pointer % 512 == 0 {
+                sector_offset = self.cluster_pointer as u32 / 512;
+                sector_address = first_sector + sector_offset;
+                sector = unsafe { read_sector(sector_address) };
+            }
+
             if let Err(_) = line.push(sector[(self.cluster_pointer % 512) as usize] as char) {
                 return None;
             }

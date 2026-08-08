@@ -332,23 +332,17 @@ pub fn list_directories(bpb: &Bpb) -> Vec<Directory, 512> {
         / bpb.bytes_per_sector as u32;
 
     let mut entries: Vec<Directory, 512> = Vec::new();
-    let mut zero_count = 0;
 
     unsafe {
         for i in 0..root_dir_sectors {
-            let sector = read_sector(first_root_dir_sector_number + i);
-            for (i, byte) in sector.iter().enumerate() {
-                if *byte == 0 {
-                    zero_count += 1;
-                } else {
-                    if zero_count > 4 {
-                        entries
-                            .push(transmute::<[u8; 32], Directory>(
-                                sector[i..(i + 32)].try_into().unwrap(),
-                            ))
-                            .unwrap();
-                    }
-                    zero_count = 0;
+            let sector_address = first_root_dir_sector_number + i;
+            let sector = read_sector(sector_address);
+
+            for i in (0..512).step_by(32) {
+                if sector[i] != 0 {
+                    let directory: Directory =
+                        transmute::<[u8; 32], Directory>(sector[i..(i + 32)].try_into().unwrap());
+                    entries.push(directory).unwrap();
                 }
             }
         }
@@ -506,36 +500,34 @@ pub fn init() {
         read_ebpb();
         println!("SECTORS PER CLUSTER: {}", &bpb.sectors_per_cluster);
 
-        for entry in list_directories(&bpb) {
-            let contents = read_file(&entry, &bpb);
-            println!(
-                "CONTENTS READ!\n{}\nEOF",
-                str::from_utf8_unchecked(&contents)
-            );
-        }
+        // for entry in list_directories(&bpb) {
+        //     let contents = read_file(&entry, &bpb);
+        //     println!(
+        //         "CONTENTS READ!\n{}\nEOF",
+        //         str::from_utf8_unchecked(&contents)
+        //     );
+        // }
 
-        let mut filestream = FileStream::new(Directory {
-            name: "LM      ".as_bytes().try_into().unwrap(),
-            extension: "ASM".as_bytes().try_into().unwrap(),
+        let entry = Directory {
+            name: [0x53, 0x41, 0x4d, 0x50, 0x4c, 0x45, 0x20, 0x20], // "SAMPLE  "
+            extension: [0x54, 0x58, 0x54],                          // "TXT"
             attributes: 0x20,
             reserved: 0x18,
-            time_taken: 0,
-            creation_time: 0x8B60,
-            creation_date: 0x5D07,
-            last_accessed: 0x5D07,
+            time_taken: 0x00,
+            creation_time: 0xaf6c,
+            creation_date: 0x5d07,
+            last_accessed: 0x5d07,
             cluster_high: 0x0000,
-            last_modified_time: 0x8B60,
-            last_modified_date: 0x5D07,
-            cluster_low: 0x000C,
-            size: 255,
-        });
+            last_modified_time: 0xaf6c,
+            last_modified_date: 0x5d07,
+            cluster_low: 0x0002, // starting cluster = 2
+            size: 0x00100038,    // 1,048,632 bytes
+        };
 
-        while let Some(line) = filestream.read_line() {
-            println!("{}", line);
-        }
+        let mut filestream = FileStream::new(entry);
 
-        let new_file_entry = Directory::new("tungtung", "txt", 8192);
-
-        create_file(new_file_entry, &bpb);
+        // while let Some(line) = filestream.read_line() {
+        //     println!("{}", line);
+        // }
     });
 }

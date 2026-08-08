@@ -34,8 +34,10 @@ fn cat(filename: &str) {
     }
 
     if let Some(entry) = file_entry {
-        let contents = fat::read_file(&entry, &bpb);
-        println!("{}", str::from_utf8(&contents).unwrap_or(""));
+        let mut filestream = fat::FileStream::new(entry);
+        while let Some(s) = filestream.read_line() {
+            println!("{s}");
+        }
     } else {
         println!("cat: {filename}: file not found")
     }
@@ -49,6 +51,7 @@ fn echo(mut s: SplitWhitespace) {
 }
 
 pub fn shell_loop() -> ! {
+    print!("# ");
     loop {
         x86_64::instructions::interrupts::without_interrupts(|| {
             let mut buffer = interrupts::KEYBOARD_BUF.lock();
@@ -69,7 +72,7 @@ pub fn shell_loop() -> ! {
                     command if command.is_empty() => {}
                     command => println!("{command}: command not found"),
                 }
-                print!("$ ");
+                print!("# ");
                 *buffer = Vec::new();
             }
         });

@@ -9,13 +9,16 @@ pub mod fat;
 pub mod gdt;
 pub mod graphics;
 pub mod interrupts;
+pub mod memory;
 pub mod serial;
 pub mod shell;
 pub mod speaker;
 pub mod time;
 
 use core::panic::PanicInfo;
-use multiboot2::{BootInformation, BootInformationHeader};
+use multiboot2::{BootInformation, BootInformationHeader, MemoryMapTag};
+
+use crate::memory::FrameAllocator;
 
 use graphics::*;
 
@@ -54,10 +57,11 @@ pub fn init() {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn kernel_main(multiboot_info_ptr: usize) -> ! {
-    let boot_info = unsafe {
+    let boot_info: BootInformation = unsafe {
         BootInformation::load(multiboot_info_ptr as *const BootInformationHeader)
             .expect("Failed to parse Multiboot2 structure")
     };
+
     if let Some(fb_tag) = boot_info.framebuffer_tag() {
         let fb_tag = fb_tag.unwrap();
 
@@ -83,6 +87,59 @@ pub extern "C" fn kernel_main(multiboot_info_ptr: usize) -> ! {
             column: 0,
         });
     }
+
+    let memory_map_tag = boot_info.memory_map_tag().expect("Memory map tag required");
+    println!("memory areas:");
+    for area in memory_map_tag.memory_areas() {
+        println!(
+            "    start: 0x{:x}, length: 0x{:x}",
+            area.start_address(),
+            area.size()
+        );
+    }
+    let elf_sections_tag = boot_info
+        .elf_sections_tag()
+        .expect("Elf-sections tag required");
+    println!("kernel sections:");
+    for section in elf_sections_tag.sections() {
+        println!(
+            "    addr: 0x{:x}, size: 0x{:x}, flags: 0x{:x}",
+            section.sh_addr, section.sh_size, section.sh_flags
+        );
+    }
+
+    let kernel_start = elf_sections_tag
+        .sections()
+        .map(|s| s.sh_addr)
+        .min()
+        .unwrap();
+    let kernel_end = elf_sections_tag
+        .sections()
+        .map(|s| s.sh_addr + s.sh_size)
+        .max()
+        .unwrap();
+
+    let multiboot_start = multiboot_info_ptr;
+    let multiboot_end = multiboot_start + (boot_info.total_size() as usize);
+
+    let mut frame_allocator = memory::arena_frame_allocator::ArenaFrameAllocator::new(
+        kernel_start as usize,
+        kernel_end as usize,
+        multiboot_start,
+        multiboot_end,
+        memory_map_tag.memory_areas().iter(),
+    );
+
+    let mut i = 0;
+    while let Some(_) = frame_allocator.allocate_frame() {
+        i += 1;
+    }
+    println!("allocated {} frames", i);
+
+    println!("kernel_start: 0x{:x}", kernel_start);
+    println!("kernel_end: 0x{:x}", kernel_end);
+    println!("multiboot_start: 0x{:x}", multiboot_start);
+    println!("multiboot_end: 0x{:x}", multiboot_end);
 
     init();
 

@@ -1,4 +1,5 @@
 oxide64.iso : kernel.bin
+	mkdir -p ./isodir/boot/assets
 	cp ./src/assets/* ./isodir/boot/assets/
 	grub2-mkrescue -o oxide64.iso isodir
 

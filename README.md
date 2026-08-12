@@ -52,6 +52,15 @@ Make can also be used to run a QEMU/KVM virtual machine for Oxide64.
 To run Oxide64, run `make run` in the project's root directory.
 
 ## Flashing
+> [!IMPORTANT]
+> Oxide64 cannot run on modern hardware! It currently uses many older hardware features, such as:
+> - ATA PIO
+> - 8259 PIC
+> - 8253/8254 PIT
+> - PS/2 Keyboard
+> 
+> This is because implementing drivers for these older hardware features is much simpler and easier
+> than implementing drivers for their modern replacements (such as AHCI, APIC, APIC Timer and xHCI).
 
 I would personally recommend using your own flashing tool to flash the
 resulting `oxide64.iso`, but I do have a `make flash` target set up to

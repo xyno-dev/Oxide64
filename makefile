@@ -1,7 +1,11 @@
+MKRESCUE ?= grub2-mkrescue
+
+.PHONY: run flash clean
+
 oxide64.iso : kernel.bin
 	mkdir -p ./isodir/boot/assets
 	cp ./src/assets/* ./isodir/boot/assets/
-	grub2-mkrescue -o oxide64.iso isodir
+	$(MKRESCUE) -o oxide64.iso isodir
 
 liboxide64.a:
 	cargo build --release

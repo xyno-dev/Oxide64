@@ -16,7 +16,6 @@ concepts.
 
 ## Building
 > [!TIP]
-> ### Prerequisites
 > Before building Oxide64, you will need the following tools installed:
 > - `cargo`
 > - `grub2-mkrescue` (is under different packages on different Linux distributions)
@@ -25,7 +24,7 @@ concepts.
 > [!IMPORTANT]
 > On some Linux distributions, the  `grub2-mkrescue` binary is called `grub-mkrescue`.
 > They both correspond to the same grub2 binary. If this is the case on your distro,
-> modify the Makefile to use `grub-mkrescue` rather than `grub2-mkrescue`.
+> run make with the `MKRESCUE` environment variable set to `grub-mkrescue`.
 
 > [!NOTE]
 > The reason why Oxide64 uses make rather than cargo's build tool is because
@@ -37,7 +36,6 @@ To build Oxide64, run `make` in the project's root directory.
 
 ## Running
 > [!TIP]
-> ### Prerequisites
 > Before running Oxide64, you will need a disk image formatted with the FAT16 file system.
 > To create a disk image and format it as FAT16, run:
 > ```

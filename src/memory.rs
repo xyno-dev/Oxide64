@@ -1,4 +1,7 @@
 pub mod arena_frame_allocator;
+pub mod paging;
+
+use paging::PhysicalAddress;
 
 pub const PAGE_SIZE: usize = 4096;
 
@@ -17,5 +20,9 @@ impl Frame {
         Frame {
             number: address / PAGE_SIZE,
         }
+    }
+
+    fn start_address(&self) -> PhysicalAddress {
+        self.number * PAGE_SIZE
     }
 }

@@ -1,0 +1,107 @@
+use crate::memory::FrameAllocator;
+use crate::memory::paging::ENTRY_COUNT;
+use crate::memory::paging::entry::*;
+
+use core::marker::PhantomData;
+use core::ops::{Index, IndexMut};
+
+pub const P4: *mut Table<Level4> = 0o177777_777_777_777_777_0000 as *mut _;
+
+pub trait TableLevel {}
+
+pub enum Level4 {}
+pub enum Level3 {}
+pub enum Level2 {}
+pub enum Level1 {}
+
+impl TableLevel for Level4 {}
+impl TableLevel for Level3 {}
+impl TableLevel for Level2 {}
+impl TableLevel for Level1 {}
+
+pub trait HierarchicalLevel: TableLevel {
+    type NextLevel: TableLevel;
+}
+
+impl HierarchicalLevel for Level4 {
+    type NextLevel = Level3;
+}
+
+impl HierarchicalLevel for Level3 {
+    type NextLevel = Level2;
+}
+
+impl HierarchicalLevel for Level2 {
+    type NextLevel = Level1;
+}
+
+pub struct Table<L: TableLevel> {
+    entries: [Entry; ENTRY_COUNT],
+    level: PhantomData<L>,
+}
+
+impl<L: TableLevel> Table<L> {
+    pub fn zero(&mut self) {
+        for entry in self.entries.iter_mut() {
+            entry.set_unused();
+        }
+    }
+}
+
+impl<L: HierarchicalLevel> Table<L> {
+    fn next_table_address(&self, index: usize) -> Option<usize> {
+        let entry_flags = &self[index];
+        if entry_flags.contains_flag(EntryFlags::Present as u64)
+            && !entry_flags.contains_flag(EntryFlags::HugePage as u64)
+        {
+            let table_address = self as *const _ as usize;
+            Some((table_address << 9) | (index << 12))
+        } else {
+            None
+        }
+    }
+
+    pub fn next_table(&self, index: usize) -> Option<&Table<L::NextLevel>> {
+        self.next_table_address(index)
+            .map(|address| unsafe { &*(address as *const _) })
+    }
+
+    pub fn next_table_mut(&mut self, index: usize) -> Option<&mut Table<L::NextLevel>> {
+        self.next_table_address(index)
+            .map(|address| unsafe { &mut *(address as *mut _) })
+    }
+
+    pub fn next_table_create<A: FrameAllocator>(
+        &mut self,
+        index: usize,
+        allocator: &mut A,
+    ) -> &mut Table<L::NextLevel> {
+        if self.next_table(index).is_none() {
+            assert!(
+                !self.entries[index].contains_flag(EntryFlags::HugePage as u64),
+                "mapping code does not support huge pages"
+            );
+            let frame = allocator.allocate_frame().expect("no frames available");
+            self.entries[index].set(
+                frame,
+                EntryFlags::Present as u64 | EntryFlags::Writable as u64,
+            );
+            self.next_table_mut(index).unwrap().zero();
+        }
+        self.next_table_mut(index).unwrap()
+    }
+}
+
+impl<L: TableLevel> Index<usize> for Table<L> {
+    type Output = Entry;
+
+    fn index(&self, index: usize) -> &Entry {
+        &self.entries[index]
+    }
+}
+
+impl<L: TableLevel> IndexMut<usize> for Table<L> {
+    fn index_mut(&mut self, index: usize) -> &mut Entry {
+        &mut self.entries[index]
+    }
+}

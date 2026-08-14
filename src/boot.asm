@@ -124,6 +124,11 @@ set_up_page_tables:
     ; map each p2 table: 512 entries * 2MB = 1GB each
     mov ecx, 0
 
+    ; recursive mapping - set last entry of p4 table to itself
+    mov eax, p4_table
+    or eax, 0b11 ; present + writable
+    mov [p4_table + 8 * 511], eax
+
 .map_p2_0:
     mov eax, 0x200000
     mul ecx

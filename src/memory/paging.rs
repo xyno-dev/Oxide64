@@ -11,6 +11,9 @@ use crate::memory::paging::table::Table;
 
 use crate::memory::paging::entry::*;
 
+use x86_64::instructions::tlb;
+use x86_64::addr::VirtAddr;
+
 const ENTRY_COUNT: usize = 512;
 
 pub type PhysicalAddress = usize;
@@ -125,6 +128,9 @@ impl ActivePageTable {
             .expect("mapping code does not support huge pages");
         let frame = p1[page.p1_index()].pointed_frame().unwrap();
         p1[page.p1_index()].set_unused();
+
+        tlb::flush(VirtAddr::new(page.start_address() as u64));
+
         // TODO free p(1,2,3) table if empty
         allocator.deallocate_frame(frame);
     }

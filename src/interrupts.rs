@@ -1,7 +1,7 @@
 use core::arch::asm;
 use core::sync::atomic::{AtomicU64, Ordering};
 
-use crate::gdt;
+use crate::{gdt, serial};
 use crate::{print, printerr, println};
 use heapless::Vec;
 use lazy_static::lazy_static;
@@ -44,6 +44,8 @@ lazy_static! {
             .set_handler_fn(timer_interrupt_handler);
         idt[InterruptIndex::Keyboard.as_u8()]
             .set_handler_fn(keyboard_interrupt_handler);
+        idt[PIC_1_OFFSET + 7].set_handler_fn(spurious_interrupt_handler);
+        idt[PIC_2_OFFSET + 7].set_handler_fn(spurious_interrupt_handler);
         idt
     };
 }
@@ -102,6 +104,10 @@ pub unsafe fn disable_apic() {
         let apic_base = rdmsr(0x1B);
         wrmsr(0x1B, apic_base & !apic_enable);
     }
+}
+
+extern "x86-interrupt" fn spurious_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    serial::debug_str("8259 PIC Spurious Interrupt!");
 }
 
 extern "x86-interrupt" fn divide_handler(stack_frame: InterruptStackFrame) {

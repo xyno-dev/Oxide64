@@ -26,7 +26,14 @@ pub static KEYBOARD_BUF: spin::Mutex<Vec<char, 256>> = spin::Mutex::new(Vec::new
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
+        idt.divide_error.set_handler_fn(divide_handler);
+        idt.debug.set_handler_fn(debug_handler);
+        idt.non_maskable_interrupt.set_handler_fn(nmi_handler);
         idt.breakpoint.set_handler_fn(breakpoint_handler);
+        idt.overflow.set_handler_fn(overflow_handler);
+        idt.bound_range_exceeded.set_handler_fn(bound_range_handler);
+        idt.invalid_opcode.set_handler_fn(invalid_opcode_handler);
+        idt.device_not_available.set_handler_fn(device_not_avaliable_handler);
         idt.general_protection_fault.set_handler_fn(gpf_handler);
         idt.page_fault.set_handler_fn(pf_handler);
         unsafe {
@@ -97,8 +104,36 @@ pub unsafe fn disable_apic() {
     }
 }
 
+extern "x86-interrupt" fn divide_handler(stack_frame: InterruptStackFrame) {
+    panic!("EXCEPTION: DIVIDE ERROR\n{:#?}", stack_frame);
+}
+
+extern "x86-interrupt" fn debug_handler(stack_frame: InterruptStackFrame) {
+    panic!("EXCEPTION: DEBUG\n{:#?}", stack_frame);
+}
+
+extern "x86-interrupt" fn nmi_handler(stack_frame: InterruptStackFrame) {
+    panic!("EXCEPTION: NON-MASKABLE INTERRUPT\n{:#?}", stack_frame);
+}
+
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     printerr!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
+}
+
+extern "x86-interrupt" fn overflow_handler(stack_frame: InterruptStackFrame) {
+    panic!("EXCEPTION: OVERFLOW\n{:#?}", stack_frame);
+}
+
+extern "x86-interrupt" fn bound_range_handler(stack_frame: InterruptStackFrame) {
+    panic!("EXCEPTION: BOUND RANGE EXCEEDED\n{:#?}", stack_frame);
+}
+
+extern "x86-interrupt" fn invalid_opcode_handler(stack_frame: InterruptStackFrame) {
+    panic!("EXCEPTION: INVALID OPCODE\n{:#?}", stack_frame);
+}
+
+extern "x86-interrupt" fn device_not_avaliable_handler(stack_frame: InterruptStackFrame) {
+    panic!("EXCEPTION: DEVICE NOT AVALIABLE\n{:#?}", stack_frame);
 }
 
 extern "x86-interrupt" fn gpf_handler(stack_frame: InterruptStackFrame, error_code: u64) {

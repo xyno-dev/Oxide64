@@ -11,7 +11,7 @@ use pc_keyboard::{HandleControl, PS2Keyboard, ScancodeSet1};
 use pic8259::ChainedPics;
 use spin::{self, Mutex};
 use x86_64::instructions::port::Port;
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
+use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -27,6 +27,8 @@ lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
         idt.breakpoint.set_handler_fn(breakpoint_handler);
+        idt.general_protection_fault.set_handler_fn(gpf_handler);
+        idt.page_fault.set_handler_fn(pf_handler);
         unsafe {
             idt.double_fault.set_handler_fn(double_fault_handler)
                 .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX); // new
@@ -97,6 +99,21 @@ pub unsafe fn disable_apic() {
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     printerr!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
+}
+
+extern "x86-interrupt" fn gpf_handler(stack_frame: InterruptStackFrame, error_code: u64) {
+    panic!(
+        "EXCEPTION: GENERAL PROTECTION FAULT\nError Code: {:#x}\n{:#?}",
+        error_code, stack_frame
+    );
+}
+
+extern "x86-interrupt" fn pf_handler(stack_frame: InterruptStackFrame, error_code: PageFaultErrorCode) {
+    let cr2 = x86_64::registers::control::Cr2::read();
+    panic!(
+        "EXCEPTION: PAGE FAULT\naddr: {:?}\nError Code: {:?}\n{:#?}",
+        cr2, error_code, stack_frame
+    );
 }
 
 extern "x86-interrupt" fn double_fault_handler(
